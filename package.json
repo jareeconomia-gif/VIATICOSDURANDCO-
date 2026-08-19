@@ -2,7 +2,6 @@
   "name": "portal-viaticos-durandco",
   "version": "1.0.0",
   "private": true,
-  "description": "Portal de Viáticos Durandco",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
