@@ -701,6 +701,7 @@ let profileSyncTimer=null;
 let configSyncTimer=null;
 let syncSequence=Promise.resolve();
 let remoteRefreshTimer=null;
+let remoteStateInitialized=false;
 function setSyncStatus(message='Conectado',state='ok'){
  const el=$('syncStatus');if(!el)return;el.textContent=message;el.dataset.state=state
 }
@@ -743,6 +744,15 @@ async function loadRemoteState(quiet=false){
  syncConfigVars();
  requests=Array.isArray(data.requests)?data.requests:[];
  refreshCatalogSelects();
+ // Conserva una copia local de recuperación después de la primera carga remota.
+ // La primera carga no toca localStorage para permitir migrar usuarios creados
+ // antes de que existiera la base compartida.
+ if(remoteStateInitialized){
+  localStorage.setItem('durandco_v2_users',JSON.stringify(users));
+  localStorage.setItem('durandco_v2_config',JSON.stringify(appConfig));
+  if(currentUser?.role==='master')localStorage.setItem('durandco_v2_requests',JSON.stringify(requests));
+ }
+ remoteStateInitialized=true;
  if(!quiet)setSyncStatus('Conectado','ok');
  return data
 }
@@ -780,9 +790,12 @@ async function migrateLegacyData(){
   [...users,...legacyUsers].forEach(u=>{if(u&&u.id)byId.set(u.id,{...(byId.get(u.id)||{}),...u})});
   for(const u of byId.values())mergedUsers.push(u);
   await apiRequest('/migrate',{method:'POST',body:{requests:legacyRequests,users:mergedUsers,config:legacyConfig||appConfig}});
-  ['durandco_v2_requests','durandco_v2_users','durandco_v2_config','durandco_v2_session'].forEach(key=>localStorage.removeItem(key));
   sessionStorage.removeItem('durandco_v2_session');
   await loadRemoteState();
+  // Mantén respaldo local de la base compartida por si Render reinicia la instancia.
+  localStorage.setItem('durandco_v2_users',JSON.stringify(users));
+  localStorage.setItem('durandco_v2_requests',JSON.stringify(requests));
+  localStorage.setItem('durandco_v2_config',JSON.stringify(appConfig));
   rerenderActiveView();
   setSyncStatus('Conectado','ok');
   toast('Usuarios y datos migrados a la base compartida');
