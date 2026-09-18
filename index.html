@@ -694,6 +694,113 @@ label{font-weight:700;color:#334155;letter-spacing:.01em}
 
 <script>
 const $=id=>document.getElementById(id);
+const API_BASE='/api';
+let requestSyncTimer=null;
+let usersSyncTimer=null;
+let profileSyncTimer=null;
+let configSyncTimer=null;
+let syncSequence=Promise.resolve();
+let remoteRefreshTimer=null;
+function setSyncStatus(message='Conectado',state='ok'){
+ const el=$('syncStatus');if(!el)return;el.textContent=message;el.dataset.state=state
+}
+async function apiRequest(path,options={}){
+ const config={credentials:'same-origin',...options,headers:{...(options.headers||{})}};
+ if(config.body&&typeof config.body!=='string'){config.headers['Content-Type']='application/json';config.body=JSON.stringify(config.body)}
+ const response=await fetch(API_BASE+path,config);
+ const contentType=response.headers.get('content-type')||'';
+ const data=contentType.includes('application/json')?await response.json():null;
+ if(!response.ok){const error=new Error(data?.error||`Error ${response.status}`);error.status=response.status;throw error}
+ return data
+}
+function syncClone(value){try{return structuredClone(value)}catch{return JSON.parse(JSON.stringify(value))}}
+function handleApiFailure(error){
+ console.error(error);setSyncStatus('Error al guardar','error');
+ if(error?.status===401){currentUser=null;$('appShell').style.display='none';$('authScreen').style.display='grid';showError('loginError','Tu sesión venció. Ingresa nuevamente.')}
+ else if(typeof toast==='function')toast(error?.message||'No fue posible guardar los cambios')
+}
+function queueRequestsSync(){
+ if(!currentUser)return;clearTimeout(requestSyncTimer);setSyncStatus('Guardando…','saving');const snapshot=syncClone(requests);
+ requestSyncTimer=setTimeout(()=>{syncSequence=syncSequence.then(()=>apiRequest('/requests/sync',{method:'PUT',body:{requests:snapshot}})).then(data=>{if(Array.isArray(data.requests))requests=data.requests;setSyncStatus('Guardado','ok')}).catch(handleApiFailure)},220)
+}
+function queueUsersSync(){
+ if(!currentUser||currentUser.role!=='master')return;clearTimeout(usersSyncTimer);setSyncStatus('Guardando usuarios…','saving');const snapshot=syncClone(users);
+ usersSyncTimer=setTimeout(()=>{syncSequence=syncSequence.then(()=>apiRequest('/state/users',{method:'PUT',body:{users:snapshot}})).then(data=>{if(Array.isArray(data.users)){users=data.users;const own=users.find(u=>u.id===currentUser.id);if(own)currentUser={...currentUser,...own}}setSyncStatus('Guardado','ok');if($('usersTable'))renderUsers()}).catch(handleApiFailure)},60)
+}
+function queueOwnProfileSync(){
+ if(!currentUser||currentUser.role==='master')return;clearTimeout(profileSyncTimer);const own=users.find(u=>u.id===currentUser.id);if(!own)return;setSyncStatus('Guardando perfil…','saving');const snapshot=syncClone(own);
+ profileSyncTimer=setTimeout(()=>{syncSequence=syncSequence.then(()=>apiRequest('/profile',{method:'PUT',body:{profile:snapshot}})).then(data=>{if(data.user){currentUser={...currentUser,...data.user};const i=users.findIndex(u=>u.id===currentUser.id);if(i>=0)users[i]=data.user}setSyncStatus('Guardado','ok')}).catch(handleApiFailure)},220)
+}
+function queueConfigSync(){
+ if(!currentUser||currentUser.role!=='master')return;clearTimeout(configSyncTimer);setSyncStatus('Guardando configuración…','saving');const snapshot=syncClone(appConfig);
+ configSyncTimer=setTimeout(()=>{syncSequence=syncSequence.then(()=>apiRequest('/state/config',{method:'PUT',body:{value:snapshot}})).then(()=>setSyncStatus('Guardado','ok')).catch(handleApiFailure)},250)
+}
+async function loadRemoteState(quiet=false){
+ if(!quiet)setSyncStatus('Sincronizando…','saving');
+ const data=await apiRequest('/bootstrap');
+ users=Array.isArray(data.users)?data.users:[];
+ appConfig=data.config&&typeof data.config==='object'?data.config:JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+ syncConfigVars();
+ requests=Array.isArray(data.requests)?data.requests:[];
+ refreshCatalogSelects();
+ if(!quiet)setSyncStatus('Conectado','ok');
+ return data
+}
+function rerenderActiveView(){
+ const active=document.querySelector('.view.active');if(!active)return;
+ if(active.id==='dashboard')renderDashboard();
+ if(active.id==='my')renderMy();
+ if(active.id==='approvals')renderApprovals();
+ if(active.id==='all')renderAll();
+ if(active.id==='users')renderUsers();
+}
+function startRemotePolling(){
+ clearInterval(remoteRefreshTimer);remoteRefreshTimer=setInterval(async()=>{
+  if(!currentUser||document.visibilityState!=='visible')return;
+  const active=document.querySelector('.view.active');if(active?.id==='new'||$('modal')?.classList.contains('open'))return;
+  try{await loadRemoteState(true);rerenderActiveView();setSyncStatus('Conectado','ok')}catch(error){console.warn('No se pudo actualizar automáticamente',error)}
+ },30000)
+}
+async function migrateLegacyData(){
+ if(!currentUser||currentUser.role!=='master')return false;
+ let legacyRequests=[],legacyUsers=[],legacyConfig=null;
+ try{legacyRequests=JSON.parse(localStorage.getItem('durandco_v2_requests')||'[]')||[]}catch{}
+ try{legacyUsers=JSON.parse(localStorage.getItem('durandco_v2_users')||'[]')||[]}catch{}
+ try{legacyConfig=JSON.parse(localStorage.getItem('durandco_v2_config')||'null')}catch{}
+ const baseIds=new Set(['MASTER','JEFE','DIRECCION','LUIS']);
+ const localCustomUsers=legacyUsers.filter(u=>u&&u.id&&!baseIds.has(u.id));
+ const serverCustomUsers=users.filter(u=>u&&u.id&&!baseIds.has(u.id));
+ // Sólo importar automáticamente cuando la base compartida aún está vacía de datos operativos.
+ if(requests.length||serverCustomUsers.length)return false;
+ if(!legacyRequests.length&&!localCustomUsers.length)return false;
+ setSyncStatus('Migrando datos locales…','saving');
+ try{
+  const mergedUsers=[];
+  const byId=new Map();
+  [...users,...legacyUsers].forEach(u=>{if(u&&u.id)byId.set(u.id,{...(byId.get(u.id)||{}),...u})});
+  for(const u of byId.values())mergedUsers.push(u);
+  await apiRequest('/migrate',{method:'POST',body:{requests:legacyRequests,users:mergedUsers,config:legacyConfig||appConfig}});
+  ['durandco_v2_requests','durandco_v2_users','durandco_v2_config','durandco_v2_session'].forEach(key=>localStorage.removeItem(key));
+  sessionStorage.removeItem('durandco_v2_session');
+  await loadRemoteState();
+  rerenderActiveView();
+  setSyncStatus('Conectado','ok');
+  toast('Usuarios y datos migrados a la base compartida');
+  return true;
+ }catch(error){
+  console.error('No se pudieron migrar los datos locales',error);
+  setSyncStatus('Conectado · migración pendiente','error');
+  toast('No se pudieron migrar los usuarios locales a la base compartida.');
+  return false;
+ }
+}
+async function changeMyPassword(){
+ const currentPassword=prompt('Escribe tu contraseña actual:');if(currentPassword===null)return;
+ const newPassword=prompt('Nueva contraseña (mínimo 8 caracteres, letras y números):');if(newPassword===null)return;
+ const confirmation=prompt('Confirma la nueva contraseña:');if(confirmation!==newPassword)return toast('Las contraseñas no coinciden');
+ try{await apiRequest('/change-password',{method:'POST',body:{currentPassword,newPassword}});toast('Contraseña actualizada')}catch(error){handleApiFailure(error)}
+}
+function downloadServerBackup(){window.location.href=API_BASE+'/admin/backup'}
 const MXN=new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'});
 const MASTER={id:'MASTER',name:'Genesis Leon',email:'gls@durandco.com',password:'123456',role:'master',company:'Grupo Industrial Durandco',position:'Director Corporativo',baseCity:'CDMX',canApproveJefe:true,canApproveDireccion:true};
 const JEFE={id:'JEFE',name:'Autorizador Jefe Inmediato',email:'jefe.inmediato@empresa.com',password:'Jefe2026!',role:'capturador',company:'Grupo Industrial Durandco',position:'Gerente Ejecutivo / Gerente de Área',baseCity:'CDMX',canApproveJefe:true,canApproveDireccion:false};
@@ -754,7 +861,7 @@ function syncConfigVars(){
  APPROVER_ROLE_PROFILES=appConfig.approverRoleProfiles||[];
  APPROVAL_PROFILES=appConfig.approvalProfiles||[];
 }
-function persistConfig(){localStorage.setItem('durandco_v2_config',JSON.stringify(appConfig));syncConfigVars()}
+function persistConfig(){localStorage.setItem('durandco_v2_config',JSON.stringify(appConfig));syncConfigVars();queueConfigSync()}
 syncConfigVars();
 function migrateLocationsAndRemovedOptions(){
  let changed=false;
@@ -974,7 +1081,7 @@ function migrateExpenseWorkflow(){
 }
 migrateExpenseWorkflow();
 
-let currentUser=JSON.parse(sessionStorage.getItem('durandco_v2_session')||'null');
+let currentUser=null;
 let step=1;
 let validation={errors:[],warnings:[],rules:[],breakdown:[],total:0,exception:0,policyAuthorized:0,route:'Jefe inmediato → Dirección'};
 
@@ -1000,8 +1107,8 @@ function excessBreakdownHtml(items){
 function norm(v){return String(v||'').trim().toLowerCase()}
 function initials(v){return String(v||'U').split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase()}
 function groupFor(p){return POSITIONS.find(x=>x.name===p)?.group||'V'}
-function persist(){localStorage.setItem('durandco_v2_requests',JSON.stringify(requests))}
-function persistUsers(){localStorage.setItem('durandco_v2_users',JSON.stringify(users))}
+function persist(){localStorage.setItem('durandco_v2_requests',JSON.stringify(requests));queueRequestsSync()}
+function persistUsers(){localStorage.setItem('durandco_v2_users',JSON.stringify(users));if(currentUser?.role==='master')queueUsersSync();else queueOwnProfileSync()}
 function fillSelect(id,items,value){
  const element=$(id);
  if(!element)return;
@@ -1032,9 +1139,33 @@ function refreshCatalogSelects(){
 refreshCatalogSelects();
 
 function showError(id,msg){$(id).textContent=msg;$(id).classList.toggle('show',Boolean(msg))}
-$('loginForm').addEventListener('submit',e=>{e.preventDefault();const u=users.find(x=>norm(x.email)===norm($('loginEmail').value)&&x.password===$('loginPassword').value);if(!u){showError('loginError','Correo o contraseña incorrectos.');return}startSession(u)});
-function startSession(u){currentUser={...u};sessionStorage.setItem('durandco_v2_session',JSON.stringify(currentUser));$('authScreen').style.display='none';$('appShell').style.display='grid';applyPermissions()}
-function logout(){sessionStorage.removeItem('durandco_v2_session');currentUser=null;$('appShell').style.display='none';$('authScreen').style.display='grid'}
+$('loginForm').addEventListener('submit',async e=>{
+ e.preventDefault();showError('loginError','');const button=e.submitter||$('loginForm').querySelector('button[type=submit]');if(button)button.disabled=true;
+ try{const data=await apiRequest('/login',{method:'POST',body:{email:$('loginEmail').value,password:$('loginPassword').value}});await startSession(data.user)}
+ catch(error){showError('loginError',error.message||'No fue posible iniciar sesión.')}finally{if(button)button.disabled=false}
+});
+async function startSession(u){
+ currentUser={...u};
+ try{
+  await loadRemoteState();
+  $('authScreen').style.display='none';
+  $('appShell').style.display='grid';
+  applyPermissions();
+  startRemotePolling();
+ }catch(error){
+  currentUser=null;
+  handleApiFailure(error);
+  $('authScreen').style.display='grid';
+  $('appShell').style.display='none';
+  return;
+ }
+ // Una falla en la migración de datos antiguos nunca debe cerrar una sesión válida.
+ await migrateLegacyData();
+}
+async function logout(){
+ try{await apiRequest('/logout',{method:'POST'})}catch{}
+ clearInterval(remoteRefreshTimer);currentUser=null;requests=[];$('appShell').style.display='none';$('authScreen').style.display='grid';$('loginPassword').value='';setSyncStatus('Desconectado','error')
+}
 function applyPermissions(){
  const isMaster=currentUser.role==='master';
  const canRequest=!isMaster;
@@ -1366,7 +1497,7 @@ $('requestForm').addEventListener('submit',e=>{
  const type=$('requestType').value,corporate=isCorporateCardType(type),finalApproverId=finalApproverIdForType(type),finalApproverName=finalApproverNameForType(type);
  const routeText=corporate?'Jefe inmediato → Luis Mondragón → Genesis Leon informado':'Jefe inmediato → Genesis Leon';
  if(!confirm(`La solicitud será enviada por la ruta ${routeText}. ¿Deseas continuar?`))return;
- currentUser.company=$('company').value;currentUser.position=$('position').value;currentUser.baseCity=$('baseCity').value;const ui=users.findIndex(u=>u.id===currentUser.id);if(ui>=0)users[ui]={...users[ui],...currentUser};persistUsers();sessionStorage.setItem('durandco_v2_session',JSON.stringify(currentUser));
+ currentUser.company=$('company').value;currentUser.position=$('position').value;currentUser.baseCity=$('baseCity').value;const ui=users.findIndex(u=>u.id===currentUser.id);if(ui>=0)users[ui]={...users[ui],...currentUser};persistUsers();
  const requesterRecord=users.find(u=>u.id===currentUser.id)||currentUser;
  const jefe=users.find(u=>u.id===requesterRecord.jefeApproverId);
  const finalApprover=users.find(u=>u.id===finalApproverId);
@@ -1963,12 +2094,12 @@ function saveUserEditor(id=''){
   position:$('cfgUserPosition').value,role:lockedMaster?'master':'capturador',
   canApproveJefe,canApproveDireccion:lockedMaster,
   jefeApproverId:lockedMaster?'':($('cfgUserJefeApprover')?.value||defaultJefeApproverId(id)),
-  direccionApproverId:'MASTER',
-  password:password||current?.password||'Temporal2026!'
+  direccionApproverId:'MASTER'
  };
+ if(password)data.password=password;
  if(current)Object.assign(current,data);else users.push(data);
  persistUsers();
- if(currentUser?.id===data.id){currentUser={...currentUser,...data};sessionStorage.setItem('durandco_v2_session',JSON.stringify(currentUser));$('sideName').textContent=data.name;$('topName').textContent=data.name}
+ if(currentUser?.id===data.id){currentUser={...currentUser,...data};delete currentUser.password;$('sideName').textContent=data.name;$('topName').textContent=data.name}
  closeModal();renderUsers();toast('Usuario guardado · Jefe inmediato asignado');
 }
 function toggleApprovalProfileField(){}
@@ -2722,7 +2853,10 @@ renderDashboard=function(){
 })();
 
 
-if(currentUser){const u=users.find(x=>x.id===currentUser.id||norm(x.email)===norm(currentUser.email));u?startSession(u):logout()}
+(async function initPortal(){
+ try{const data=await apiRequest('/me');await startSession(data.user)}
+ catch{$('authScreen').style.display='grid';$('appShell').style.display='none';$('loginEmail').focus()}
+})();
 </script>
 </body>
 </html>
