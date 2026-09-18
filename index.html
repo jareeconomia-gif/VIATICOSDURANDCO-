@@ -2091,12 +2091,12 @@ function openUserEditor(id=''){
  <div class="actions"><button class="btn btn-outline" onclick="closeModal()">Cancelar</button>${editing&&!lockedMaster?`<button class="btn btn-danger" onclick="deleteUserAccount('${safe(u.id)}')">Eliminar</button>`:''}<button class="btn btn-orange" onclick="saveUserEditor('${safe(u.id)}')">Guardar usuario</button></div>`;
  $('modal').classList.add('open');
 }
-function saveUserEditor(id=''){
+async function saveUserEditor(id=''){
  const name=$('cfgUserName').value.trim(),mail=norm($('cfgUserEmail').value),password=$('cfgUserPassword').value;
  if(!name||!mail){toast('Completa nombre y correo');return}
  if(users.some(u=>u.id!==id&&norm(u.email)===mail)){toast('El correo ya pertenece a otro usuario');return}
  if(!id&&password.length<6){toast('La contraseña inicial debe tener al menos 6 caracteres');return}
- const current=users.find(u=>u.id===id),lockedMaster=current?.id==='MASTER';
+ const current=users.find(u=>u.id===id),lockedMaster=current?.id==='MASTER',lockedLuis=current?.id==='LUIS';
  const canApproveJefe=lockedMaster?true:Boolean($('cfgCanApproveJefe')?.checked);
  if(current&&!canApproveJefe){
   const linked=users.filter(u=>u.id!==id&&u.jefeApproverId===id);
@@ -2105,15 +2105,25 @@ function saveUserEditor(id=''){
  const data={
   id:id||'U'+Date.now(),name,email:mail,company:$('cfgUserCompany').value,baseCity:$('cfgUserBase').value,
   position:$('cfgUserPosition').value,role:lockedMaster?'master':'capturador',
-  canApproveJefe,canApproveDireccion:lockedMaster,
+  canApproveJefe,canApproveDireccion:lockedMaster||lockedLuis||Boolean(current?.canApproveDireccion),
   jefeApproverId:lockedMaster?'':($('cfgUserJefeApprover')?.value||defaultJefeApproverId(id)),
   direccionApproverId:'MASTER'
  };
  if(password)data.password=password;
- if(current)Object.assign(current,data);else users.push(data);
- persistUsers();
- if(currentUser?.id===data.id){currentUser={...currentUser,...data};delete currentUser.password;$('sideName').textContent=data.name;$('topName').textContent=data.name}
- closeModal();renderUsers();toast('Usuario guardado · Jefe inmediato asignado');
+ const saveButton=$('modalContent')?.querySelector('.btn.btn-orange');
+ if(saveButton){saveButton.disabled=true;saveButton.textContent='Guardando…'}
+ try{
+  const result=await apiRequest('/user/admin',{method:'PUT',body:{user:data}});
+  const saved=result.user;
+  const index=users.findIndex(u=>u.id===saved.id);
+  if(index>=0)users[index]=saved;else users.push(saved);
+  localStorage.setItem('durandco_v2_users',JSON.stringify(users));
+  if(currentUser?.id===saved.id){currentUser={...currentUser,...saved};$('sideName').textContent=saved.name;$('sideEmail').textContent=saved.email;$('topName').textContent=saved.name}
+  closeModal();renderUsers();toast(password?'Usuario y contraseña guardados en el servidor':'Usuario guardado en el servidor');
+ }catch(error){
+  toast(error?.message||'No fue posible guardar el usuario');
+  if(saveButton){saveButton.disabled=false;saveButton.textContent='Guardar usuario'}
+ }
 }
 function toggleApprovalProfileField(){}
 function deleteUserAccount(id){
