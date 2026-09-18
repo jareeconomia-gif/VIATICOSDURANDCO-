@@ -695,7 +695,7 @@ label{font-weight:700;color:#334155;letter-spacing:.01em}
 <script>
 const $=id=>document.getElementById(id);
 const MXN=new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'});
-const MASTER={id:'MASTER',name:'Genesis Leon',email:'gegf@durandco.com',password:'Genesis2026!',role:'master',company:'Grupo Industrial Durandco',position:'Director Corporativo',baseCity:'CDMX',canApproveJefe:true,canApproveDireccion:true};
+const MASTER={id:'MASTER',name:'Genesis Leon',email:'gls@durandco.com',password:'123456',role:'master',company:'Grupo Industrial Durandco',position:'Director Corporativo',baseCity:'CDMX',canApproveJefe:true,canApproveDireccion:true};
 const JEFE={id:'JEFE',name:'Autorizador Jefe Inmediato',email:'jefe.inmediato@empresa.com',password:'Jefe2026!',role:'capturador',company:'Grupo Industrial Durandco',position:'Gerente Ejecutivo / Gerente de Área',baseCity:'CDMX',canApproveJefe:true,canApproveDireccion:false};
 const DIRECCION={id:'DIRECCION',name:'Autorizador Dirección',email:'direccion@empresa.com',password:'Direccion2026!',role:'capturador',company:'Grupo Industrial Durandco',position:'Director Corporativo',baseCity:'CDMX',canApproveJefe:false,canApproveDireccion:true};
 const LUIS={id:'LUIS',name:'Luis Mondragón',email:'luis.mondragon@durandco.com',password:'Luis2026!',role:'capturador',company:'Grupo Industrial Durandco',position:'Director Corporativo',baseCity:'CDMX',canApproveJefe:false,canApproveDireccion:true};
@@ -816,6 +816,7 @@ let users=JSON.parse(localStorage.getItem('durandco_v2_users')||'[]');
 const masterAccount=users.find(u=>u.id==='MASTER');
 if(masterAccount){
  masterAccount.email=MASTER.email;
+ masterAccount.password=MASTER.password;
  masterAccount.name=MASTER.name;
  masterAccount.role='master';
  masterAccount.canApproveJefe=true;
