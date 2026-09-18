@@ -409,6 +409,47 @@ function canUpdateRequest(user, oldRequest, incoming) {
   return { allowed: false };
 }
 
+
+function upsertOneUser(user, raw) {
+  if (user.role !== 'master') throw Object.assign(new Error('Sólo el usuario maestro puede administrar usuarios.'), { statusCode: 403 });
+  const source = cleanObject(raw);
+  const id = String(source.id || '').trim();
+  if (!id || !source.name || !source.email) throw Object.assign(new Error('El usuario requiere ID, nombre y correo.'), { statusCode: 400 });
+  const existing = db.prepare('SELECT * FROM users WHERE id=?').get(id);
+  const payload = sanitizeUserPayload(source, existing);
+  if (id === 'MASTER') {
+    payload.id = 'MASTER';
+    payload.role = 'master';
+    payload.canApproveJefe = true;
+    payload.canApproveDireccion = true;
+    payload.direccionApproverId = 'MASTER';
+  }
+  if (id === 'LUIS') {
+    payload.role = 'capturador';
+    payload.canApproveDireccion = true;
+    payload.direccionApproverId = 'MASTER';
+  }
+  const duplicate = db.prepare('SELECT id,active FROM users WHERE lower(email)=? AND id<>?').get(payload.email, id);
+  if (duplicate) throw Object.assign(new Error(`El correo ${payload.email} ya pertenece a otro usuario.`), { statusCode: 409 });
+  const suppliedPassword = typeof source.password === 'string' ? source.password : '';
+  let passwordHash = existing?.password_hash;
+  if (!existing && suppliedPassword.length < 6) {
+    throw Object.assign(new Error('La contraseña inicial debe tener al menos 6 caracteres.'), { statusCode: 400 });
+  }
+  if (suppliedPassword) {
+    if (suppliedPassword.length < 6) throw Object.assign(new Error('La contraseña debe tener al menos 6 caracteres.'), { statusCode: 400 });
+    passwordHash = hashPassword(suppliedPassword);
+  }
+  const stamp = nowIso();
+  db.prepare(`INSERT INTO users(id,email,password_hash,name,role,active,payload,created_at,updated_at)
+    VALUES(?,?,?,?,?,1,?,?,?)
+    ON CONFLICT(id) DO UPDATE SET email=excluded.email,password_hash=excluded.password_hash,name=excluded.name,role=excluded.role,
+      active=1,payload=excluded.payload,updated_at=excluded.updated_at`)
+    .run(id, payload.email, passwordHash, payload.name, payload.role, JSON.stringify(payload), existing?.created_at || stamp, stamp);
+  audit(user.id, existing ? 'update' : 'create', 'user', id, { email: payload.email, passwordChanged: Boolean(suppliedPassword) });
+  return publicUser(db.prepare('SELECT * FROM users WHERE id=?').get(id));
+}
+
 async function syncUsers(user, incomingUsers) {
   if (user.role !== 'master') throw Object.assign(new Error('Sólo el usuario maestro puede administrar usuarios.'), { statusCode: 403 });
   if (!Array.isArray(incomingUsers)) throw Object.assign(new Error('La lista de usuarios no es válida.'), { statusCode: 400 });
@@ -584,6 +625,12 @@ async function handleApi(req, res, pathname) {
     db.prepare('UPDATE users SET payload=?,updated_at=? WHERE id=?').run(JSON.stringify(next), nowIso(), user.id);
     audit(user.id, 'update', 'profile', user.id, { company: next.company, position: next.position, baseCity: next.baseCity });
     return json(res, 200, { ok: true, user: next });
+  }
+
+  if (req.method === 'PUT' && pathname === '/api/user/admin') {
+    const body = await readJson(req);
+    const saved = upsertOneUser(user, body.user);
+    return json(res, 200, { ok: true, user: saved });
   }
 
   if (req.method === 'PUT' && pathname === '/api/state/users') {
