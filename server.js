@@ -137,7 +137,7 @@ const DEFAULT_USERS = [
     jefeApproverId:'JEFE', direccionApproverId:'MASTER'
   },
   {
-    id:'LUIS', email:'luis.mondragon@durandco.com', password:'Luis2026!', name:'Luis Mondragón', role:'capturador',
+    id:'LUIS', email:'lams@durandco.com', password:'Luis2026!', name:'Luis Mondragón', role:'capturador',
     company:'Grupo Industrial Durandco', position:'Director Corporativo', baseCity:'CDMX', canApproveJefe:false, canApproveDireccion:true,
     jefeApproverId:'JEFE', direccionApproverId:'MASTER'
   }
@@ -254,6 +254,26 @@ function updateMasterIdentity() {
   }
 }
 updateMasterIdentity();
+
+function updateLuisIdentity() {
+  const luis = db.prepare('SELECT * FROM users WHERE id=?').get('LUIS');
+  if (!luis) return;
+  const targetEmail = 'lams@durandco.com';
+  const duplicate = db.prepare('SELECT id FROM users WHERE lower(email)=? AND id<>?').get(targetEmail, 'LUIS');
+  if (duplicate) {
+    db.prepare('UPDATE users SET active=0,updated_at=? WHERE id=?').run(nowIso(), duplicate.id);
+    audit('system', 'deactivate_duplicate_email', 'user', duplicate.id, { email: targetEmail, reassignedTo: 'LUIS' });
+  }
+  const payload = sanitizeUserPayload(safeJsonParse(luis.payload, {}), luis);
+  payload.name = 'Luis Mondragón';
+  payload.email = targetEmail;
+  payload.canApproveDireccion = true;
+  payload.direccionApproverId = 'MASTER';
+  db.prepare('UPDATE users SET email=?,name=?,role=?,active=1,payload=?,updated_at=? WHERE id=?')
+    .run(targetEmail, payload.name, 'capturador', JSON.stringify(payload), nowIso(), 'LUIS');
+}
+updateLuisIdentity();
+
 
 function parseCookies(req) {
   const result = {};
