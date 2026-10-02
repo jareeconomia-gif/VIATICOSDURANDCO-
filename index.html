@@ -2011,15 +2011,21 @@ function validateProof(id,action){
 }
 function csvCell(value){const s=String(value??'');return /[",\n]/.test(s)?`"${s.replace(/"/g,'""')}"`:s}
 function downloadRequestSapLayout(id){
+ if(currentUser?.id!=='MASTER'){toast('El layout SAP es exclusivo de Génesis León Sarabia');return}
  const r=requests.find(x=>x.id===id);if(!r)return;
- const formRows=$('proofActual_'+(r.expenses?.[0]?.id||''))?proofActualRowsFromForm(r):null;
- const actualRows=formRows||((Array.isArray(r.proof?.actualExpenses)&&r.proof.actualExpenses.length)?r.proof.actualExpenses:approvedExpenseRows(r));
- const headers=['Folio solicitud','Informe de gastos','Sociedad','Cuenta mayor SAP','Concepto','CECO / Proyecto','Límite política MXN','Importe aprobado MXN','Importe comprobado MXN','Exceso política MXN','Diferencia vs aprobado MXN','Texto SAP'];
- const rows=actualRows.map(e=>{const policy=Number(e.policyLimit??e.approved)||0,actual=Number(e.actual)||0;return[r.id,expenseReportId(r),e.society,e.account,e.label,r.costProject,policy,e.approved,actual,Math.max(0,actual-policy),actual-Number(e.approved),`${r.id} · ${expenseReportId(r)} · ${e.label} · ${r.requester}`]});
+ const p=r.proof||{};
+ if(!p.layoutReadyAt&&!['Pendiente validación SAP','Viáticos validados'].includes(String(p.status||''))){toast('El layout se habilita cuando el usuario envía la comprobación');return}
+ const actualRows=(Array.isArray(p.actualExpenses)&&p.actualExpenses.length)?p.actualExpenses:approvedExpenseRows(r);
+ const headers=['Folio solicitud','Informe de gastos','Transacción','Sociedad','Fecha factura','Fecha contabilización','Emisor de factura','Referencia','Moneda','Importe bruto MXN','Cuenta mayor SAP','Concepto','CECO / Proyecto','Límite política MXN','Importe aprobado MXN','Importe comprobado MXN','Exceso política MXN','Diferencia vs aprobado MXN','Texto SAP'];
+ const rows=actualRows.map(e=>{
+  const policy=Number(e.policyLimit??e.approved)||0,actual=Number(e.actual)||0;
+  return[r.id,expenseReportId(r),p.transaction||'Factura',e.society||p.society||'1020',p.invoiceDate||'',p.postingDate||'',p.invoiceIssuer||'',p.invoiceReference||'',p.currency||'MXN',p.invoiceGross||p.actualTotal||0,e.account,e.label,r.costProject,policy,e.approved,actual,Math.max(0,actual-policy),actual-Number(e.approved),r.id+' · '+expenseReportId(r)+' · '+e.label+' · '+r.requester]
+ });
  const totals=proofTotals(actualRows);
- rows.push([r.id,expenseReportId(r),'','','TOTAL',r.costProject,'',totals.approved,totals.actual,'',totals.difference,`Comprobación folio ${r.id}`]);
+ rows.push([r.id,expenseReportId(r),p.transaction||'Factura',p.society||'1020',p.invoiceDate||'',p.postingDate||'',p.invoiceIssuer||'',p.invoiceReference||'',p.currency||'MXN',p.invoiceGross||p.actualTotal||0,'','TOTAL',r.costProject,'',totals.approved,totals.actual,'',totals.difference,'Comprobación folio '+r.id]);
  const csv='\ufeff'+[headers,...rows].map(row=>row.map(csvCell).join(',')).join('\r\n');
- const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`Comprobacion_SAP_${r.id}.csv`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000)
+ const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}),a=document.createElement('a');
+ a.href=URL.createObjectURL(blob);a.download='Comprobacion_SAP_'+r.id+'.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000)
 }
 
 function showConfigTab(name){
@@ -2669,7 +2675,8 @@ saveProofDraft=function(id){
   actualExpenses,approvedTotal:totals.approved,actualTotal:totals.actual,difference:totals.difference,
   returnDate:$('proofReturnDate')?.value||existing.returnDate||'',returnReference:String($('proofReturnReference')?.value||existing.returnReference||'').trim(),
   reimbursementJustification:String($('proofReimbursementJustification')?.value||existing.reimbursementJustification||'').trim(),
-  journalNumber:String($('proofJournalNumber')?.value||existing.journalNumber||'').trim(),journalDate:$('proofJournalDate')?.value||existing.journalDate||'',
+  invoiceDate:$('proofInvoiceDate')?.value||existing.invoiceDate||'',postingDate:$('proofPostingDate')?.value||existing.postingDate||'',
+  invoiceIssuer:String($('proofInvoiceIssuer')?.value||existing.invoiceIssuer||'').trim(),invoiceReference:String($('proofInvoiceReference')?.value||existing.invoiceReference||'').trim(),
   employeeComment:String($('proofEmployeeComment')?.value||existing.employeeComment||'').trim(),
   status:locked?existing.status:'Borrador de comprobación',lastSavedAt:new Date().toISOString()
  };
@@ -2749,22 +2756,32 @@ function markEmployeeReimbursed(id,approved){
 /* El diario sólo se envía cuando la liquidación quedó resuelta */
 saveProofSubmission=function(id){
  const r=requests.find(x=>x.id===id);if(!r)return;
+ if(currentUser.role==='master'||norm(r.requesterEmail)!==norm(currentUser.email)){toast('Sólo el solicitante puede enviar esta comprobación');return}
  const actualExpenses=proofActualRowsFromForm(r),s=settlementInfo(r,actualExpenses);
  if(!settlementResolved(r,actualExpenses)){
-  toast(s.companyBalance>0?'Genesis Leon debe validar primero la devolución':'El reembolso al empleado debe quedar realizado antes de enviar el diario');return
+  toast(s.companyBalance>0?'Génesis debe validar primero la devolución':'El reembolso al empleado debe quedar realizado antes de enviar la comprobación');return
  }
- const journalNumber=String($('proofJournalNumber')?.value||'').trim(),journalDate=$('proofJournalDate')?.value||'',employeeComment=String($('proofEmployeeComment')?.value||'').trim();
+ const invoiceDate=$('proofInvoiceDate')?.value||'';
+ const postingDate=$('proofPostingDate')?.value||'';
+ const invoiceIssuer=String($('proofInvoiceIssuer')?.value||'').trim();
+ const invoiceReference=String($('proofInvoiceReference')?.value||'').trim();
+ const employeeComment=String($('proofEmployeeComment')?.value||'').trim();
  const file=$('proofFile')?.files?.[0],existing=r.proof||{},totals=proofTotals(actualExpenses);
- if(!journalNumber||!journalDate){toast('Captura el número y la fecha del diario');return}
+ if(!invoiceDate||!postingDate||!invoiceIssuer||!invoiceReference){toast('Completa fecha de factura, fecha de contabilización, emisor y referencia');return}
  if(file&&file.size>1572864){toast('El archivo supera 1.5 MB');return}
  const commit=(fileData,fileName,fileType)=>{
-  r.proof={...existing,reportId:existing.reportId||expenseReportId(r),createdAt:existing.createdAt||new Date().toISOString(),createdBy:existing.createdBy||currentUser.name,
-   sapOpenedAt:existing.sapOpenedAt||r.sapProofOpenedAt||'',sapUrl:SAP_PROOF_URL,journalNumber,journalDate,employeeComment,actualExpenses,
-   approvedTotal:totals.approved,actualTotal:totals.actual,difference:s.delta,fileData:fileData||existing.fileData,fileName:fileName||existing.fileName,fileType:fileType||existing.fileType,
+  r.proof={...existing,
+   reportId:existing.reportId||expenseReportId(r),createdAt:existing.createdAt||new Date().toISOString(),createdBy:existing.createdBy||currentUser.name,
+   invoiceDate,postingDate,invoiceIssuer,invoiceReference,invoiceGross:s.actual,transaction:'Factura',society:'1020',currency:'MXN',
+   employeeComment,actualExpenses,approvedTotal:totals.approved,actualTotal:totals.actual,difference:s.delta,
+   fileData:fileData||existing.fileData,fileName:fileName||existing.fileName,fileType:fileType||existing.fileType,
+   layoutReadyAt:new Date().toISOString(),layoutReadyBy:'Sistema',
+   journalNumber:existing.journalNumber||'',journalDate:existing.journalDate||'',
    status:'Pendiente validación SAP',submittedAt:new Date().toISOString(),submittedBy:currentUser.name,validatedAt:'',validatedBy:''
   };
-  r.history=r.history||[];r.history.push({stage:'Diario de comprobación enviado a Genesis Leon',by:currentUser.name,date:new Date().toISOString(),comment:`Diario ${journalNumber} · Comprobado ${MXN.format(s.actual)} · ${settlementStatusText(r)}`});
-  persist();closeModal();renderProofs();renderMy();renderDashboard();toast('Diario enviado a Genesis Leon para validación en SAP')
+  r.history=r.history||[];
+  r.history.push({stage:'Comprobación enviada · Layout SAP listo para Génesis',by:currentUser.name,date:new Date().toISOString(),comment:'Comprobado '+MXN.format(s.actual)+' · '+settlementStatusText(r)});
+  persist();closeModal();renderProofs();renderMy();renderDashboard();toast('Comprobación enviada. El layout SAP ya está disponible para Génesis.')
  };
  if(!file){commit();return}
  const reader=new FileReader();reader.onload=()=>commit(reader.result,file.name,file.type);reader.onerror=()=>toast('No fue posible leer el archivo');reader.readAsDataURL(file)
