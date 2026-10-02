@@ -209,7 +209,15 @@ input:focus,select:focus,textarea:focus{border-color:var(--orange);box-shadow:0 
 .sap-proof-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.sap-proof-grid .full{grid-column:1/-1}.sap-proof-readonly{background:#f8fafc!important;color:#475569}
 .sap-proof-total{font-size:18px;font-weight:850;color:#111827}.sap-proof-note{padding:12px 14px;border-radius:12px;background:#eff6ff;color:#1e3a8a;font-size:11px;line-height:1.5}
 .modal:has(.sap-proof-screen) .modal-card{width:min(1240px,96vw)}
-@media(max-width:800px){.sap-proof-grid{grid-template-columns:1fr}}
+#invoiceCapture .concur-page-head{margin-bottom:0;border-radius:18px 18px 0 0}
+#invoiceCaptureContent{margin:0 -26px -48px;padding:0 26px 48px;background:#f4f6f8;min-height:calc(100vh - 190px)}
+#invoiceCapture .sap-proof-screen{margin-top:0;border:0;border-radius:0;box-shadow:none;background:#f4f6f8;min-height:calc(100vh - 190px)}
+#invoiceCapture .sap-proof-head{padding:24px 28px 18px}
+#invoiceCapture .sap-proof-body{padding:24px 28px 40px}
+#invoiceCapture .sap-proof-card{border-radius:10px;box-shadow:none}
+.invoice-empty{background:#fff;border:1px solid #dfe4ea;padding:36px;border-radius:0 0 16px 16px;text-align:center}
+.invoice-empty h4{margin:0 0 8px;font-size:18px;color:#0f172a}.invoice-empty p{margin:0 auto 16px;color:#64748b;max-width:620px}
+@media(max-width:800px){.sap-proof-grid{grid-template-columns:1fr}#invoiceCaptureContent{margin:0 -14px -34px;padding:0 14px 34px}}
 </style>
 
 <style id="durandco-expense-concur-theme">
@@ -452,6 +460,7 @@ label{font-weight:700;color:#334155;letter-spacing:.01em}
     <button data-capturador data-view="new"><span class="nav-icon">＋</span>Solicitar viaje</button>
     <button data-capturador data-view="my"><span class="nav-icon">▤</span>Mis viajes</button>
     <button data-view="proofs" id="proofNavButton"><span class="nav-icon">▣</span><span id="proofNavLabel">Comprobación</span></button>
+    <button data-capturador data-view="invoiceCapture"><span class="nav-icon">▤</span>Factura proveedor</button>
     <button data-approver data-view="approvals"><span class="nav-icon">✓</span>Aprobaciones</button>
     <button data-master data-view="all"><span class="nav-icon">◫</span>Monitor de solicitudes</button>
     <button data-master data-view="users"><span class="nav-icon">⚙</span>Administración</button>
@@ -486,7 +495,7 @@ label{font-weight:700;color:#334155;letter-spacing:.01em}
   <div class="quick-actions">
     <button type="button" onclick="showView('new')"><span class="quick-icon">＋</span><span><strong>Solicitar viaje</strong><small>Anticipo o tarjeta corporativa</small></span><b>›</b></button>
     <button type="button" onclick="showView('proofs')"><span class="quick-icon">▤</span><span><strong>Comprobar gastos</strong><small>Captura tus gastos dentro del portal</small></span><b>›</b></button>
-    <button type="button" onclick="showView('proofs')"><span class="quick-icon">SAP</span><span><strong>Comprobación contable</strong><small>El portal prepara el layout para Génesis</small></span><b>›</b></button>
+    <button type="button" onclick="showView('invoiceCapture')"><span class="quick-icon">SAP</span><span><strong>Factura proveedor</strong><small>Pantalla independiente de captura contable</small></span><b>›</b></button>
   </div>
   <div class="section-caption"><div><h3>Resumen de actividad</h3><p>Estado de tus solicitudes y comprobaciones.</p></div></div>
   <div class="cards" id="metrics"></div>
@@ -627,6 +636,19 @@ label{font-weight:700;color:#334155;letter-spacing:.01em}
   </div>
 </section>
 
+
+<section class="view" id="invoiceCapture">
+  <div class="concur-page-head">
+    <div>
+      <span class="breadcrumb">COMPROBACIÓN / FACTURA PROVEEDOR</span>
+      <h3>Nueva factura de proveedor</h3>
+      <p>Captura la información contable en una pantalla independiente. El layout SAP se genera para Génesis y no es visible para el solicitante.</p>
+    </div>
+    <button class="btn btn-light" type="button" onclick="showView('proofs')">← Volver a Comprobación</button>
+  </div>
+  <div id="invoiceCaptureContent"></div>
+</section>
+
 <section class="view" id="approvals">
   <div class="hero"><div><h3 id="approvalHeroTitle">Aprobaciones pendientes</h3><p id="approvalHeroText">Revisa únicamente las solicitudes correspondientes a tu etapa.</p></div><span class="hero-badge" id="approvalHeroBadge">Autorizador</span></div>
   <div class="panel"><div class="panel-head"><div><h3>Solicitudes pendientes</h3><p id="approvalSubtitle"></p></div></div><div id="approvalTable"></div></div>
@@ -713,6 +735,7 @@ let configSyncTimer=null;
 let syncSequence=Promise.resolve();
 let remoteRefreshTimer=null;
 let remoteStateInitialized=false;
+let activeInvoiceRequestId='';
 function setSyncStatus(message='Conectado',state='ok'){
  const el=$('syncStatus');if(!el)return;el.textContent=message;el.dataset.state=state
 }
@@ -921,6 +944,7 @@ const TITLES={
  new:['Nueva solicitud de viaje','Captura guiada'],
  my:['Mis viajes','Solicitudes y anticipos'],
  proofs:['Comprobación','Gastos reales y preparación contable'],
+ invoiceCapture:['Factura proveedor','Captura contable dentro del portal'],
  approvals:['Autorizaciones','Bandeja de revisión'],
  all:['Monitor de solicitudes','Vista administrativa'],
  users:['Administración','Usuarios, políticas y catálogos']
@@ -1243,12 +1267,12 @@ function normalizeUserProfiles(){
 function showView(id){
  const isMaster=currentUser.role==='master';
  const canApprove=Boolean(currentUser.canApproveJefe||currentUser.canApproveDireccion||isMaster);
- if(!isMaster&&!['new','my','proofs','approvals'].includes(id))id='new';
+ if(!isMaster&&!['new','my','proofs','invoiceCapture','approvals'].includes(id))id='new';
  if(id==='approvals'&&!canApprove)id=isMaster?'dashboard':'new';
  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
  document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===id&&!b.classList.contains('hidden')));
  $(id).classList.add('active');$('pageTitle').textContent=TITLES[id][0];$('pageSubtitle').textContent=TITLES[id][1];$('sidebar').classList.remove('open');
- if(id==='dashboard')renderDashboard();if(id==='my')renderMy();if(id==='proofs')renderProofs();if(id==='approvals')renderApprovals();if(id==='all')renderAll();if(id==='users')renderUsers();
+ if(id==='dashboard')renderDashboard();if(id==='my')renderMy();if(id==='proofs')renderProofs();if(id==='invoiceCapture')renderInvoiceCapture();if(id==='approvals')renderApprovals();if(id==='all')renderAll();if(id==='users')renderUsers();
  window.scrollTo({top:0,behavior:'smooth'})
 }
 document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>showView(b.dataset.view));$('menuBtn').onclick=()=>$('sidebar').classList.toggle('open');
@@ -2641,44 +2665,106 @@ openProofEditor=function(id){
  </div>
 
  <div id="journalSection" class="${canJournal?'':'hidden'}">
-  <div class="sap-proof-screen">
-   <div class="sap-proof-head">
-    <h3>Nueva factura de proveedor</h3>
-    <p>Captura la información de tu comprobación aquí. El portal prepara el layout contable automáticamente; sólo Génesis puede descargarlo.</p>
-   </div>
-   <div class="sap-proof-tabs">
-    <span class="active">Información general</span><span>Posiciones del libro mayor</span><span>Impuesto</span><span>Pago</span><span>Nota</span><span>Anexos</span>
-   </div>
-   <div class="sap-proof-body">
-    <div class="sap-proof-card">
-     <h4>Datos básicos</h4>
-     <div class="sap-proof-grid">
-      <div class="field"><label>Transacción</label><input class="sap-proof-readonly" value="Factura" readonly></div>
-      <div class="field"><label>Sociedad</label><input class="sap-proof-readonly" value="1020 (DURANDCO BUSINESS SUPPORT)" readonly></div>
-      <div class="field"><label>Moneda</label><input class="sap-proof-readonly" value="MXN" readonly></div>
-      <div class="field"><label>Fecha factura <span style="color:var(--danger)">*</span></label><input id="proofInvoiceDate" type="date" value="${safe(p.invoiceDate||new Date().toISOString().slice(0,10))}"></div>
-      <div class="field"><label>Fecha contabilización <span style="color:var(--danger)">*</span></label><input id="proofPostingDate" type="date" value="${safe(p.postingDate||new Date().toISOString().slice(0,10))}"></div>
-      <div class="field"><label>Emisor de factura <span style="color:var(--danger)">*</span></label><input id="proofInvoiceIssuer" value="${safe(p.invoiceIssuer||'')}" placeholder="Proveedor / establecimiento"></div>
-      <div class="field"><label>Importe bruto</label><input id="proofInvoiceGross" class="sap-proof-readonly" value="${Number(s.actual||0).toFixed(2)}" readonly></div>
-      <div class="field"><label>Referencia <span style="color:var(--danger)">*</span></label><input id="proofInvoiceReference" value="${safe(p.invoiceReference||'')}" placeholder="Folio / UUID / referencia"></div>
-      <div class="field"><label>Folio de viático</label><input class="sap-proof-readonly" value="${safe(r.id)}" readonly></div>
-      <div class="field full"><label>Nota / comentario para Génesis</label><textarea id="proofEmployeeComment" placeholder="Aclara cualquier dato necesario para la contabilización.">${safe(p.employeeComment||'')}</textarea></div>
-      <div class="field full"><label>Anexo opcional</label><input id="proofFile" type="file" accept=".pdf,.xlsx,.xls,.csv,.zip,.jpg,.jpeg,.png"><div class="file-note">Puedes adjuntar soporte adicional; máximo 1.5 MB.</div></div>
-     </div>
-    </div>
-    <div class="sap-proof-card">
-     <h4>Posiciones del libro mayor</h4>
-     <div class="table-wrap"><table class="data"><thead><tr><th>Concepto</th><th>Importe comprobado</th><th>CECO / Proyecto</th><th>Sociedad</th></tr></thead><tbody>${rows.map(row=>'<tr><td>'+safe(row.label)+'</td><td><strong>'+MXN.format(Number(row.actual)||0)+'</strong></td><td>'+safe(r.costProject||'')+'</td><td>1020</td></tr>').join('')}</tbody></table></div>
-     <div class="sap-proof-note" style="margin-top:12px"><strong>Layout automático:</strong> las cuentas contables, importes, CECO y texto SAP se integran en segundo plano. Este archivo no es visible para el solicitante.</div>
-    </div>
-    <div class="settlement-actions"><button class="btn btn-orange" onclick="saveProofSubmission('${safe(r.id)}')">Enviar comprobación a Génesis</button></div>
-   </div>
+  <div class="settlement-case" style="background:#fff;border-color:#b8d7ef">
+   <h4>${s.corporate?'2':'3'}. Captura contable</h4>
+   <p>La liquidación ya está resuelta. Continúa en una pantalla nueva para capturar la factura de proveedor.</p>
+   <div class="settlement-actions"><button class="btn btn-orange" type="button" onclick="openInvoiceCaptureFromProof('${safe(r.id)}')">Abrir nueva factura de proveedor →</button></div>
   </div>
  </div>
  <div class="proof-actions"><button class="btn btn-outline" onclick="closeModal()">Cerrar</button><button class="btn btn-light" onclick="saveProofDraft('${safe(r.id)}')">Guardar borrador</button></div>`;
  $('modal').classList.add('open');
  setTimeout(()=>updateProofReconciliation(id),0)
 };
+
+
+function openInvoiceCaptureFromProof(id){
+ const r=requests.find(x=>x.id===id);if(!r)return;
+ if(currentUser.role==='master'||norm(r.requesterEmail)!==norm(currentUser.email)){toast('Sólo el solicitante puede continuar a la captura contable');return}
+ const actualExpenses=proofActualRowsFromForm(r),s=settlementInfo(r,actualExpenses);
+ if(!settlementResolved(r,actualExpenses)){toast('Primero debe quedar resuelta la liquidación');return}
+ const existing=r.proof||{},totals=proofTotals(actualExpenses);
+ r.proof={...existing,
+  reportId:existing.reportId||expenseReportId(r),createdAt:existing.createdAt||new Date().toISOString(),createdBy:existing.createdBy||currentUser.name,
+  actualExpenses,approvedTotal:totals.approved,actualTotal:totals.actual,difference:totals.difference,
+  returnDate:$('proofReturnDate')?.value||existing.returnDate||'',returnReference:String($('proofReturnReference')?.value||existing.returnReference||'').trim(),
+  reimbursementJustification:String($('proofReimbursementJustification')?.value||existing.reimbursementJustification||'').trim(),
+  status:existing.status||'Borrador de comprobación',lastSavedAt:new Date().toISOString()
+ };
+ persist();activeInvoiceRequestId=id;closeModal();showView('invoiceCapture')
+}
+
+function renderInvoiceCapture(){
+ const box=$('invoiceCaptureContent');if(!box)return;
+ if(currentUser?.role==='master'){
+  box.innerHTML='<div class="invoice-empty"><h4>Captura del solicitante</h4><p>Génesis recibe los layouts desde la bandeja de Comprobación.</p><button class="btn btn-light" onclick="showView(\'proofs\')">Volver</button></div>';return
+ }
+ let r=activeInvoiceRequestId?requests.find(x=>x.id===activeInvoiceRequestId):null;
+ if(!r){
+  const candidates=requests.filter(x=>norm(x.requesterEmail)===norm(currentUser.email)&&approvedForProof(x)&&tripEnded(x)&&settlementResolved(x)&&!['Pendiente validación SAP','Viáticos validados'].includes(requestProofStatus(x)));
+  if(candidates.length===1){r=candidates[0];activeInvoiceRequestId=r.id}
+ }
+ if(!r){
+  box.innerHTML='<div class="invoice-empty"><h4>Selecciona primero una comprobación</h4><p>Abre un folio desde Comprobación y, cuando la liquidación esté resuelta, usa “Abrir nueva factura de proveedor”.</p><button class="btn btn-orange" onclick="showView(\'proofs\')">Ir a Comprobación</button></div>';return
+ }
+ if(norm(r.requesterEmail)!==norm(currentUser.email)){activeInvoiceRequestId='';renderInvoiceCapture();return}
+ const p=r.proof||{},rows=(Array.isArray(p.actualExpenses)&&p.actualExpenses.length)?p.actualExpenses:approvedExpenseRows(r),s=settlementInfo(r,rows);
+ if(!settlementResolved(r,rows)){
+  box.innerHTML='<div class="invoice-empty"><h4>Liquidación pendiente</h4><p>Primero resuelve la devolución o el reembolso de este folio.</p><button class="btn btn-orange" onclick="openProofEditor(\''+safe(r.id)+'\')">Volver al expediente</button></div>';return
+ }
+ const sent=['Pendiente validación SAP','Viáticos validados'].includes(requestProofStatus(r));
+ box.innerHTML=`<div class="sap-proof-screen">
+  <div class="sap-proof-head">
+   <div style="display:flex;justify-content:space-between;gap:20px;align-items:flex-start;flex-wrap:wrap">
+    <div><h3>Nueva factura de proveedor</h3><p>Folio ${safe(r.id)} · Informe ${safe(expenseReportId(r))} · ${safe(r.destination)}</p></div>
+    <div style="display:flex;gap:22px;flex-wrap:wrap">
+     <div class="sap-kpi"><small>Recurso</small><strong>${MXN.format(resourceAmountForRequest(r))}</strong></div>
+     <div class="sap-kpi"><small>Comprobado</small><strong>${MXN.format(s.actual)}</strong></div>
+     <div class="sap-kpi"><small>Diferencia</small><strong>${MXN.format(s.delta)}</strong></div>
+    </div>
+   </div>
+  </div>
+  <div class="sap-proof-tabs"><span class="active">Información general</span><span>Referencias de documentos de compras</span><span>Posiciones del libro mayor</span><span>Impuesto</span><span>Pago</span><span>Nota</span><span>Anexos</span></div>
+  <div class="sap-proof-body">
+   <div class="sap-proof-card">
+    <h4>Datos básicos</h4>
+    <div class="sap-proof-grid">
+     <div class="field"><label>Transacción</label><input class="sap-proof-readonly" value="Factura" readonly></div>
+     <div class="field"><label>Sociedad</label><input class="sap-proof-readonly" value="1020 (DURANDCO BUSINESS SUPPORT)" readonly></div>
+     <div class="field"><label>Moneda</label><input class="sap-proof-readonly" value="MXN" readonly></div>
+     <div class="field"><label>Fecha factura <span style="color:var(--danger)">*</span></label><input id="proofInvoiceDate" type="date" value="${safe(p.invoiceDate||new Date().toISOString().slice(0,10))}" ${sent?'disabled':''}></div>
+     <div class="field"><label>Fecha contabilización <span style="color:var(--danger)">*</span></label><input id="proofPostingDate" type="date" value="${safe(p.postingDate||new Date().toISOString().slice(0,10))}" ${sent?'disabled':''}></div>
+     <div class="field"><label>Emisor de factura <span style="color:var(--danger)">*</span></label><input id="proofInvoiceIssuer" value="${safe(p.invoiceIssuer||'')}" placeholder="Proveedor / establecimiento" ${sent?'disabled':''}></div>
+     <div class="field"><label>Importe bruto</label><input id="proofInvoiceGross" class="sap-proof-readonly" value="${Number(s.actual||0).toFixed(2)}" readonly></div>
+     <div class="field"><label>Referencia <span style="color:var(--danger)">*</span></label><input id="proofInvoiceReference" value="${safe(p.invoiceReference||'')}" placeholder="Folio / UUID / referencia" ${sent?'disabled':''}></div>
+     <div class="field"><label>Folio de viático</label><input class="sap-proof-readonly" value="${safe(r.id)}" readonly></div>
+     <div class="field full"><label>Nota / comentario para Génesis</label><textarea id="proofEmployeeComment" placeholder="Aclara cualquier dato necesario para la contabilización." ${sent?'disabled':''}>${safe(p.employeeComment||'')}</textarea></div>
+     <div class="field full"><label>Anexo opcional</label><input id="proofFile" type="file" accept=".pdf,.xlsx,.xls,.csv,.zip,.jpg,.jpeg,.png" ${sent?'disabled':''}><div class="file-note">Puedes adjuntar soporte adicional; máximo 1.5 MB.</div></div>
+    </div>
+   </div>
+   <div class="sap-proof-card">
+    <h4>Posiciones del libro mayor</h4>
+    <div class="table-wrap"><table class="data"><thead><tr><th>Cuenta SAP</th><th>Concepto</th><th>Importe comprobado</th><th>CECO / Proyecto</th><th>Sociedad</th></tr></thead><tbody>${rows.map(row=>`<tr><td><strong>${safe(row.account)}</strong></td><td>${safe(row.label)}</td><td><strong>${MXN.format(Number(row.actual)||0)}</strong></td><td>${safe(r.costProject||'')}</td><td>${safe(row.society||'1020')}</td></tr>`).join('')}</tbody></table></div>
+    <div class="sap-proof-note" style="margin-top:12px"><strong>Layout automático:</strong> las cuentas, importes, CECO y texto SAP se preparan en segundo plano. El solicitante no puede ver ni descargar ese archivo.</div>
+   </div>
+   ${sent?`<div class="notice"><strong>Comprobación enviada.</strong> Génesis ya tiene disponible el layout SAP de este folio.</div>`:`<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><button class="btn btn-light" onclick="showView('proofs')">← Volver</button><div style="display:flex;gap:8px"><button class="btn btn-light" onclick="saveInvoiceCaptureDraft('${safe(r.id)}')">Guardar borrador</button><button class="btn btn-orange" onclick="saveProofSubmission('${safe(r.id)}')">Enviar comprobación a Génesis</button></div></div>`}
+  </div>
+ </div>`
+}
+
+function saveInvoiceCaptureDraft(id){
+ const r=requests.find(x=>x.id===id);if(!r)return;
+ if(currentUser.role==='master'||norm(r.requesterEmail)!==norm(currentUser.email)){toast('Sólo el solicitante puede guardar esta captura');return}
+ const existing=r.proof||{},rows=(Array.isArray(existing.actualExpenses)&&existing.actualExpenses.length)?existing.actualExpenses:approvedExpenseRows(r),totals=proofTotals(rows);
+ r.proof={...existing,
+  invoiceDate:$('proofInvoiceDate')?.value||existing.invoiceDate||'',postingDate:$('proofPostingDate')?.value||existing.postingDate||'',
+  invoiceIssuer:String($('proofInvoiceIssuer')?.value||existing.invoiceIssuer||'').trim(),invoiceReference:String($('proofInvoiceReference')?.value||existing.invoiceReference||'').trim(),
+  invoiceGross:totals.actual,transaction:'Factura',society:'1020',currency:'MXN',
+  employeeComment:String($('proofEmployeeComment')?.value||existing.employeeComment||'').trim(),
+  actualExpenses:rows,approvedTotal:totals.approved,actualTotal:totals.actual,difference:totals.difference,
+  status:existing.status||'Borrador de comprobación',lastSavedAt:new Date().toISOString()
+ };
+ persist();toast('Captura contable guardada')
+}
 
 saveProofDraft=function(id){
  const r=requests.find(x=>x.id===id);if(!r)return;
@@ -2796,7 +2882,8 @@ saveProofSubmission=function(id){
   };
   r.history=r.history||[];
   r.history.push({stage:'Comprobación enviada · Layout SAP listo para Génesis',by:currentUser.name,date:new Date().toISOString(),comment:'Comprobado '+MXN.format(s.actual)+' · '+settlementStatusText(r)});
-  persist();closeModal();renderProofs();renderMy();renderDashboard();toast('Comprobación enviada. El layout SAP ya está disponible para Génesis.')
+  activeInvoiceRequestId='';
+  persist();showView('proofs');renderProofs();renderMy();renderDashboard();toast('Comprobación enviada. El layout SAP ya está disponible para Génesis.')
  };
  if(!file){commit();return}
  const reader=new FileReader();reader.onload=()=>commit(reader.result,file.name,file.type);reader.onerror=()=>toast('No fue posible leer el archivo');reader.readAsDataURL(file)
