@@ -1845,7 +1845,7 @@ function approvedExpenseRows(r){
  return (r.expenses||[]).map(e=>{
   const id=e.id||expenseIdFromName(e.name),meta=sapMeta(id),approved=Number(e.total)||0;
   const prior=saved.find(x=>x.id===id||x.account===meta.account);
-  return{id,account:e.account||meta.account,society:e.society||meta.society,label:meta.label,approved,policyLimit:Number(e.policyLimit??approved)||0,actual:prior?Number(prior.actual)||0:approved}
+  return{id,account:e.account||meta.account,society:e.society||meta.society,label:meta.label,approved,policyLimit:Number(e.policyLimit??approved)||0,actual:prior?Number(prior.actual)||0:approved,taxCode:prior?.taxCode||''}
  })
 }
 function proofTotals(rows){
@@ -2050,20 +2050,13 @@ function validateProof(id,action){
 function csvCell(value){const s=String(value??'');return /[",\n]/.test(s)?`"${s.replace(/"/g,'""')}"`:s}
 function downloadRequestSapLayout(id){
  if(currentUser?.id!=='MASTER'){toast('El layout SAP es exclusivo de Génesis León Sarabia');return}
- const r=requests.find(x=>x.id===id);if(!r)return;
- const p=r.proof||{};
+ const r=requests.find(x=>x.id===id);if(!r)return;const p=r.proof||{};
  if(!p.layoutReadyAt&&!['Pendiente validación SAP','Viáticos validados'].includes(String(p.status||''))){toast('El layout se habilita cuando el usuario envía la comprobación');return}
  const actualRows=(Array.isArray(p.actualExpenses)&&p.actualExpenses.length)?p.actualExpenses:approvedExpenseRows(r);
- const headers=['Folio solicitud','Informe de gastos','Transacción','Sociedad','Fecha factura','Fecha contabilización','Emisor de factura','Referencia','Moneda','Importe bruto MXN','Cuenta mayor SAP','Concepto','CECO / Proyecto','Límite política MXN','Importe aprobado MXN','Importe comprobado MXN','Exceso política MXN','Diferencia vs aprobado MXN','Texto SAP'];
- const rows=actualRows.map(e=>{
-  const policy=Number(e.policyLimit??e.approved)||0,actual=Number(e.actual)||0;
-  return[r.id,expenseReportId(r),p.transaction||'Factura',e.society||p.society||'1020',p.invoiceDate||'',p.postingDate||'',p.invoiceIssuer||'',p.invoiceReference||'',p.currency||'MXN',p.invoiceGross||p.actualTotal||0,e.account,e.label,r.costProject,policy,e.approved,actual,Math.max(0,actual-policy),actual-Number(e.approved),r.id+' · '+expenseReportId(r)+' · '+e.label+' · '+r.requester]
- });
- const totals=proofTotals(actualRows);
- rows.push([r.id,expenseReportId(r),p.transaction||'Factura',p.society||'1020',p.invoiceDate||'',p.postingDate||'',p.invoiceIssuer||'',p.invoiceReference||'',p.currency||'MXN',p.invoiceGross||p.actualTotal||0,'','TOTAL',r.costProject,'',totals.approved,totals.actual,'',totals.difference,'Comprobación folio '+r.id]);
- const csv='\ufeff'+[headers,...rows].map(row=>row.map(csvCell).join(',')).join('\r\n');
- const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}),a=document.createElement('a');
- a.href=URL.createObjectURL(blob);a.download='Comprobacion_SAP_'+r.id+'.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000)
+ const headers=['Folio solicitud','Informe de gastos','Transacción','Sociedad','Fecha factura','Fecha contabilización','Emisor de factura','Referencia','Moneda','Importe bruto MXN','Cuenta mayor SAP','Concepto','Código impuesto','Base neta MXN','Impuesto MXN','IVA acreditable MXN','IVA no deducible MXN','CECO / Proyecto','Importe comprobado MXN','Texto SAP'];
+ const rows=actualRows.map(e=>{const code=e.taxCode||defaultInvoiceTaxCode(e),cfg=invoiceTaxCatalog().find(x=>x.taxCode===code)||{percentage:0,deductiblePercentage:0},gross=Number(e.actual)||0,base=cfg.percentage>0?gross/(1+cfg.percentage/100):gross,tax=gross-base,ded=tax*(cfg.deductiblePercentage/100),nonded=tax-ded;return[r.id,expenseReportId(r),p.transaction||'Factura',e.society||p.society||'1020',p.invoiceDate||'',p.postingDate||'',r.requester,p.invoiceReference||'',p.currency||'MXN',p.invoiceGross||p.actualTotal||0,e.account,e.label,code,Math.round(base*100)/100,Math.round(tax*100)/100,Math.round(ded*100)/100,Math.round(nonded*100)/100,r.costProject,gross,r.id+' · '+expenseReportId(r)+' · '+e.label+' · '+r.requester]});
+ const totals=proofTotals(actualRows);rows.push([r.id,expenseReportId(r),p.transaction||'Factura',p.society||'1020',p.invoiceDate||'',p.postingDate||'',r.requester,p.invoiceReference||'',p.currency||'MXN',p.invoiceGross||p.actualTotal||0,'','TOTAL','','','','','',r.costProject,totals.actual,'Comprobación folio '+r.id]);
+ const csv='\ufeff'+[headers,...rows].map(row=>row.map(csvCell).join(',')).join('\r\n');const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='Comprobacion_SAP_'+r.id+'.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000)
 }
 
 function showConfigTab(name){
@@ -2693,6 +2686,25 @@ function openInvoiceCaptureFromProof(id){
  persist();activeInvoiceRequestId=id;closeModal();showView('invoiceCapture')
 }
 
+const DEFAULT_INVOICE_TAX_CATALOG=[
+ {taxCode:'3C',description:'IVA Acreditable',percentage:16,deductiblePercentage:100,active:true},
+ {taxCode:'3P',description:'IVA No deducible',percentage:16,deductiblePercentage:0,active:true},
+ {taxCode:'V0',description:'Tasa 0%',percentage:0,deductiblePercentage:100,active:true},
+ {taxCode:'3Z',description:'No aplica',percentage:0,deductiblePercentage:0,active:true}
+];
+function invoiceTaxCatalog(){const src=Array.isArray(appConfig?.taxCatalog)&&appConfig.taxCatalog.length?appConfig.taxCatalog:DEFAULT_INVOICE_TAX_CATALOG;return src.filter(x=>x&&x.active!==false).map(x=>({...x,percentage:Number(x.percentage)||0,deductiblePercentage:Number(x.deductiblePercentage??100)}))}
+function invoicePaymentMethods(){const src=Array.isArray(appConfig?.invoicePaymentMethods)&&appConfig.invoicePaymentMethods.length?appConfig.invoicePaymentMethods:[{code:'K',description:'Kyriba',active:true},{code:'T',description:'Transferencia electrónica',active:true}];return src.filter(x=>x&&x.active!==false)}
+function defaultInvoiceTaxCode(row){if(row?.taxCode)return row.taxCode;const label=norm(row?.label);return label.includes('otros')||label.includes('propina')?'3Z':'3C'}
+function invoiceTaxOptionsHtml(row){const sel=defaultInvoiceTaxCode(row);return invoiceTaxCatalog().map(x=>'<option value="'+safe(x.taxCode)+'" '+(x.taxCode===sel?'selected':'')+'>'+safe(x.taxCode+' · '+x.description+' · '+Number(x.percentage).toFixed(2)+'%')+'</option>').join('')}
+function invoiceRowsForCapture(r){const p=r?.proof||{};return Array.isArray(p.actualExpenses)&&p.actualExpenses.length?p.actualExpenses:approvedExpenseRows(r)}
+function invoiceTaxData(r,readDom=true){const rows=invoiceRowsForCapture(r),catalog=invoiceTaxCatalog(),lines=[];let net=0,tax=0,gross=0;rows.forEach(row=>{const input=readDom?$('invoiceTaxCode_'+row.id):null,code=input?.value||defaultInvoiceTaxCode(row),cfg=catalog.find(x=>x.taxCode===code)||{taxCode:code,description:'No aplica',percentage:0,deductiblePercentage:0},lineGross=Math.max(0,Number(row.actual)||0),base=cfg.percentage>0?lineGross/(1+cfg.percentage/100):lineGross,lineTax=lineGross-base,ded=lineTax*(Math.max(0,Math.min(100,cfg.deductiblePercentage))/100),nonded=lineTax-ded;net+=base;tax+=lineTax;gross+=lineGross;lines.push({...row,taxCode:code,taxDescription:cfg.description,taxPercentage:cfg.percentage,deductiblePercentage:cfg.deductiblePercentage,taxBase:Math.round(base*100)/100,taxAmount:Math.round(lineTax*100)/100,deductibleTax:Math.round(ded*100)/100,nondeductibleTax:Math.round(nonded*100)/100})});return{lines,net:Math.round(net*100)/100,tax:Math.round(tax*100)/100,gross:Math.round(gross*100)/100}}
+function invoiceTaxTableHtml(d){if(!d?.lines?.length)return'<tr><td colspan="8">Sin posiciones fiscales.</td></tr>';return d.lines.map(x=>'<tr><td>S (Debe)</td><td><strong>'+safe(x.taxCode)+'</strong><br><small>'+safe(x.taxDescription)+'</small></td><td>'+Number(x.taxPercentage).toFixed(2)+'%</td><td>'+MXN.format(x.taxAmount)+'</td><td>MXN</td><td>'+MXN.format(x.taxBase)+'</td><td>'+MXN.format(x.deductibleTax)+'</td><td>'+MXN.format(x.nondeductibleTax)+'</td></tr>').join('')}
+function refreshInvoiceTaxSummary(id){const r=requests.find(x=>x.id===id);if(!r)return;const d=invoiceTaxData(r,true);if($('proofInvoiceNet'))$('proofInvoiceNet').value=d.net.toFixed(2);if($('proofInvoiceTax'))$('proofInvoiceTax').value=d.tax.toFixed(2);if($('proofInvoiceGross'))$('proofInvoiceGross').value=d.gross.toFixed(2);if($('invoiceTaxTableBody'))$('invoiceTaxTableBody').innerHTML=invoiceTaxTableHtml(d);d.lines.forEach(x=>{if($('invoiceBase_'+x.id))$('invoiceBase_'+x.id).textContent=MXN.format(x.taxBase);if($('invoiceTax_'+x.id))$('invoiceTax_'+x.id).textContent=MXN.format(x.taxAmount)});const expected=Number(r.proof?.actualTotal||d.gross)||0,diff=Math.round((d.gross-expected)*100)/100;if($('invoiceDifference')){$('invoiceDifference').textContent=MXN.format(diff);$('invoiceDifference').style.color=Math.abs(diff)>.01?'var(--danger)':'var(--success)'}}
+function updateInvoiceDueDate(){const base=$('invoiceBaselineDate')?.value||$('proofPostingDate')?.value||'',days=Math.max(0,Number($('invoiceNetDays')?.value)||0);if(!base||!$('invoiceDueDate'))return;const d=new Date(base+'T12:00:00');d.setDate(d.getDate()+days);$('invoiceDueDate').value=d.toISOString().slice(0,10)}
+function scrollSupplierInvoiceSection(id,el){document.querySelectorAll('.sap-proof-tabs span').forEach(x=>x.classList.remove('active'));if(el)el.classList.add('active');const target=$(id);if(target)target.scrollIntoView({behavior:'smooth',block:'start'})}
+function invoicePaymentOptionsHtml(selected){return invoicePaymentMethods().map(x=>'<option value="'+safe(x.code)+'" '+(x.code===selected?'selected':'')+'>'+safe(x.code+' - '+x.description)+'</option>').join('')}
+function verifySupplierInvoice(id,quiet=false){const r=requests.find(x=>x.id===id);if(!r)return false;const d=invoiceTaxData(r,true),errors=[];if(!$('proofInvoiceDate')?.value)errors.push('Falta fecha de factura');if(!$('proofPostingDate')?.value)errors.push('Falta fecha de contabilización');if(!String($('proofInvoiceReference')?.value||'').trim())errors.push('Falta referencia de factura');if(!r.requester)errors.push('Falta emisor de factura');if(!d.lines.length)errors.push('Falta al menos una posición contable');if(d.lines.some(x=>!x.account||Number(x.actual)<=0))errors.push('Todas las posiciones deben tener cuenta e importe');const expected=Number(r.proof?.actualTotal||d.gross)||0;if(Math.abs(d.gross-expected)>.01)errors.push('El total de la factura no cuadra con el total comprobado');const panel=$('invoiceVerificationResult');if(panel)panel.innerHTML=errors.length?'<div class="notice error"><strong>Resultado de verificación</strong><br>'+errors.map(x=>'✕ '+safe(x)).join('<br>')+'</div>':'<div class="notice"><strong>Resultado de verificación</strong><br>✓ Emisor válido<br>✓ Importe cuadrado<br>✓ Impuestos calculados<br>✓ Imputaciones completas</div>';if(!quiet)toast(errors.length?'La factura tiene '+errors.length+' validación(es) pendiente(s)':'Factura verificada correctamente');return errors.length===0}
+function submitSupplierInvoiceCapture(id){if(!verifySupplierInvoice(id,false))return;saveInvoiceCaptureDraft(id,true);saveProofSubmission(id)}
 function renderInvoiceCapture(){
  const box=$('invoiceCaptureContent');if(!box)return;
  if(currentUser?.role==='master'){
@@ -2707,7 +2719,7 @@ function renderInvoiceCapture(){
   box.innerHTML='<div class="invoice-empty"><h4>Selecciona primero una comprobación</h4><p>Abre un folio desde Comprobación y, cuando la liquidación esté resuelta, usa “Abrir nueva factura de proveedor”.</p><button class="btn btn-orange" onclick="showView(\'proofs\')">Ir a Comprobación</button></div>';return
  }
  if(norm(r.requesterEmail)!==norm(currentUser.email)){activeInvoiceRequestId='';renderInvoiceCapture();return}
- const p=r.proof||{},rows=(Array.isArray(p.actualExpenses)&&p.actualExpenses.length)?p.actualExpenses:approvedExpenseRows(r),s=settlementInfo(r,rows);
+ const p=r.proof||{},rows=(Array.isArray(p.actualExpenses)&&p.actualExpenses.length)?p.actualExpenses:approvedExpenseRows(r),s=settlementInfo(r,rows),taxData=invoiceTaxData(r,false);
  if(!settlementResolved(r,rows)){
   box.innerHTML='<div class="invoice-empty"><h4>Liquidación pendiente</h4><p>Primero resuelve la devolución o el reembolso de este folio.</p><button class="btn btn-orange" onclick="openProofEditor(\''+safe(r.id)+'\')">Volver al expediente</button></div>';return
  }
@@ -2723,47 +2735,77 @@ function renderInvoiceCapture(){
     </div>
    </div>
   </div>
-  <div class="sap-proof-tabs"><span class="active">Información general</span><span>Referencias de documentos de compras</span><span>Posiciones del libro mayor</span><span>Impuesto</span><span>Pago</span><span>Nota</span><span>Anexos</span></div>
+  <div class="sap-proof-tabs"><span class="active" onclick="scrollSupplierInvoiceSection('invoiceGeneral',this)">Información general</span><span onclick="scrollSupplierInvoiceSection('invoiceReferences',this)">Referencias de documentos de compras</span><span onclick="scrollSupplierInvoiceSection('invoiceGl',this)">Posiciones del libro mayor</span><span onclick="scrollSupplierInvoiceSection('invoiceTax',this)">Impuesto</span><span onclick="scrollSupplierInvoiceSection('invoicePayment',this)">Pago</span><span onclick="scrollSupplierInvoiceSection('invoiceDelivery',this)">Costes de entrega no planificados</span><span onclick="scrollSupplierInvoiceSection('invoiceNote',this)">Nota</span><span onclick="scrollSupplierInvoiceSection('invoiceAttachments',this)">Anexos</span></div>
   <div class="sap-proof-body">
-   <div class="sap-proof-card">
-    <h4>Datos básicos</h4>
+   <div class="sap-proof-card" id="invoiceGeneral">
+    <h4>Información general · Datos básicos</h4>
     <div class="sap-proof-grid">
      <div class="field"><label>Transacción</label><input class="sap-proof-readonly" value="Factura" readonly></div>
      <div class="field"><label>Sociedad</label><input class="sap-proof-readonly" value="1020 (DURANDCO BUSINESS SUPPORT)" readonly></div>
      <div class="field"><label>Moneda</label><input class="sap-proof-readonly" value="MXN" readonly></div>
      <div class="field"><label>Fecha factura <span style="color:var(--danger)">*</span></label><input id="proofInvoiceDate" type="date" value="${safe(p.invoiceDate||new Date().toISOString().slice(0,10))}" ${sent?'disabled':''}></div>
      <div class="field"><label>Fecha contabilización <span style="color:var(--danger)">*</span></label><input id="proofPostingDate" type="date" value="${safe(p.postingDate||new Date().toISOString().slice(0,10))}" ${sent?'disabled':''}></div>
-     <div class="field"><label>Emisor de factura <span style="color:var(--danger)">*</span></label><input id="proofInvoiceIssuer" value="${safe(p.invoiceIssuer||'')}" placeholder="Proveedor / establecimiento" ${sent?'disabled':''}></div>
-     <div class="field"><label>Importe bruto</label><input id="proofInvoiceGross" class="sap-proof-readonly" value="${Number(s.actual||0).toFixed(2)}" readonly></div>
+     <div class="field"><label>Emisor de factura</label><input id="proofInvoiceIssuer" class="sap-proof-readonly" value="${safe(r.requester)}" readonly><small style="display:block;margin-top:4px;color:var(--muted)">Se toma automáticamente del usuario que realiza la comprobación.</small></div>
+     <div class="field"><label>Importe neto</label><input id="proofInvoiceNet" class="sap-proof-readonly" value="${taxData.net.toFixed(2)}" readonly></div>
+     <div class="field"><label>Impuestos</label><input id="proofInvoiceTax" class="sap-proof-readonly" value="${taxData.tax.toFixed(2)}" readonly></div>
+     <div class="field"><label>Importe bruto</label><input id="proofInvoiceGross" class="sap-proof-readonly" value="${taxData.gross.toFixed(2)}" readonly></div>
      <div class="field"><label>Referencia <span style="color:var(--danger)">*</span></label><input id="proofInvoiceReference" value="${safe(p.invoiceReference||'')}" placeholder="Folio / UUID / referencia" ${sent?'disabled':''}></div>
      <div class="field"><label>Folio de viático</label><input class="sap-proof-readonly" value="${safe(r.id)}" readonly></div>
-     <div class="field full"><label>Nota / comentario para Génesis</label><textarea id="proofEmployeeComment" placeholder="Aclara cualquier dato necesario para la contabilización." ${sent?'disabled':''}>${safe(p.employeeComment||'')}</textarea></div>
-     <div class="field full"><label>Anexo opcional</label><input id="proofFile" type="file" accept=".pdf,.xlsx,.xls,.csv,.zip,.jpg,.jpeg,.png" ${sent?'disabled':''}><div class="file-note">Puedes adjuntar soporte adicional; máximo 1.5 MB.</div></div>
+     <div class="field"><label>CECO / Proyecto</label><input class="sap-proof-readonly" value="${safe(r.costProject||'')}" readonly></div>
+     <div class="field"><label>Solicitante</label><input class="sap-proof-readonly" value="${safe(r.requester)}" readonly></div>
+     <div class="field"><label>Tipo de cambio</label><input id="invoiceExchangeRate" type="number" step=".0001" min="0" value="${Number(p.supplierInvoice?.exchangeRate||1)}" ${sent?'disabled':''}></div>
+     <div class="field"><label>Texto de cabecera</label><input id="invoiceHeaderText" value="${safe(p.supplierInvoice?.headerText||('Comprobación '+r.id))}" ${sent?'disabled':''}></div>
+     <div class="field"><label>Asignación</label><input id="invoiceAssignment" value="${safe(p.supplierInvoice?.assignment||r.id)}" ${sent?'disabled':''}></div>
     </div>
    </div>
-   <div class="sap-proof-card">
+   <div class="sap-proof-card" id="invoiceGl">
     <h4>Posiciones del libro mayor</h4>
-    <div class="table-wrap"><table class="data"><thead><tr><th>Cuenta SAP</th><th>Concepto</th><th>Importe comprobado</th><th>CECO / Proyecto</th><th>Sociedad</th></tr></thead><tbody>${rows.map(row=>`<tr><td><strong>${safe(row.account)}</strong></td><td>${safe(row.label)}</td><td><strong>${MXN.format(Number(row.actual)||0)}</strong></td><td>${safe(r.costProject||'')}</td><td>${safe(row.society||'1020')}</td></tr>`).join('')}</tbody></table></div>
-    <div class="sap-proof-note" style="margin-top:12px"><strong>Layout automático:</strong> las cuentas, importes, CECO y texto SAP se preparan en segundo plano. El solicitante no puede ver ni descargar ese archivo.</div>
+    <div class="table-wrap"><table class="data"><thead><tr><th>Debe/Haber</th><th>Cuenta SAP</th><th>Concepto</th><th>Importe bruto</th><th>Código impuesto</th><th>Base neta</th><th>Impuesto</th><th>CECO / Proyecto</th></tr></thead><tbody>${rows.map(row=>{const cfg=taxData.lines.find(x=>x.id===row.id)||{};return `<tr><td>Debe (S)</td><td><strong>${safe(row.account)}</strong></td><td>${safe(row.label)}</td><td><strong>${MXN.format(Number(row.actual)||0)}</strong></td><td><select id="invoiceTaxCode_${safe(row.id)}" ${sent?'disabled':''} onchange="refreshInvoiceTaxSummary('${safe(r.id)}')">${invoiceTaxOptionsHtml(row)}</select></td><td id="invoiceBase_${safe(row.id)}">${MXN.format(cfg.taxBase||0)}</td><td id="invoiceTax_${safe(row.id)}">${MXN.format(cfg.taxAmount||0)}</td><td>${safe(r.costProject||'')}</td></tr>`}).join('')}</tbody></table></div>
+    <div style="display:flex;justify-content:flex-end;gap:22px;padding-top:12px;font-size:12px"><span>Neto: <strong>${MXN.format(taxData.net)}</strong></span><span>Impuestos: <strong>${MXN.format(taxData.tax)}</strong></span><span>Total: <strong>${MXN.format(taxData.gross)}</strong></span></div>
    </div>
-   ${sent?`<div class="notice"><strong>Comprobación enviada.</strong> Génesis ya tiene disponible el layout SAP de este folio.</div>`:`<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><button class="btn btn-light" onclick="showView('proofs')">← Volver</button><div style="display:flex;gap:8px"><button class="btn btn-light" onclick="saveInvoiceCaptureDraft('${safe(r.id)}')">Guardar borrador</button><button class="btn btn-orange" onclick="saveProofSubmission('${safe(r.id)}')">Enviar comprobación a Génesis</button></div></div>`}
+   <div class="sap-proof-card" id="invoiceReferences">
+    <h4>Referencias de documentos de compras</h4>
+    <div class="sap-proof-grid"><div class="field"><label>Tipo de referencia</label><select id="invoiceReferenceType" ${sent?'disabled':''}><option value="SIN_REFERENCIA">Sin referencia</option><option value="OC">Orden de compra</option><option value="EM">Entrada de mercancías</option><option value="SES">Hoja de entrada de servicios</option><option value="ENTREGA">Documento de entrega</option></select></div><div class="field"><label>Número documento</label><input id="invoicePurchaseDocument" value="${safe(p.supplierInvoice?.purchaseDocument||'')}" ${sent?'disabled':''}></div><div class="field"><label>Posición</label><input id="invoicePurchasePosition" value="${safe(p.supplierInvoice?.purchasePosition||'')}" ${sent?'disabled':''}></div></div>
+    <div class="sap-proof-note" style="margin-top:10px">Para comprobaciones de viáticos puede continuar como <strong>Sin referencia</strong>.</div>
+   </div>
+   <div class="sap-proof-card" id="invoiceTax">
+    <h4>Impuesto</h4>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:12px"><div><small>Fecha decl. fiscal</small><strong style="display:block">${safe(p.postingDate||new Date().toISOString().slice(0,10))}</strong></div><div><small>Fecha fiscal</small><strong style="display:block">${safe(p.postingDate||new Date().toISOString().slice(0,10))}</strong></div><div><small>Fecha cumpl. fiscal</small><strong style="display:block">${safe(p.postingDate||new Date().toISOString().slice(0,10))}</strong></div></div>
+    <div class="sap-proof-note" style="margin-bottom:10px">Los datos fiscales se calculan automáticamente según el código de impuesto de cada posición.</div>
+    <div class="table-wrap"><table class="data"><thead><tr><th>Débito/Crédito</th><th>Indicador impuestos</th><th>Tipo impositivo</th><th>Importe impuestos</th><th>Moneda</th><th>Base impuesto</th><th>IVA acreditable</th><th>IVA no deducible</th></tr></thead><tbody id="invoiceTaxTableBody">${invoiceTaxTableHtml(taxData)}</tbody></table></div>
+   </div>
+   <div class="sap-proof-card" id="invoicePayment">
+    <h4>Pago</h4>
+    <div class="sap-proof-grid">
+     <div class="field"><label>Condiciones de pago</label><input id="invoicePaymentTerms" value="${safe(p.supplierInvoice?.paymentTerms||'Pago inmediato')}" ${sent?'disabled':''}></div>
+     <div class="field"><label>Fecha base</label><input id="invoiceBaselineDate" type="date" value="${safe(p.supplierInvoice?.baselineDate||p.postingDate||new Date().toISOString().slice(0,10))}" ${sent?'disabled':''} onchange="updateInvoiceDueDate()"></div>
+     <div class="field"><label>Días netos</label><input id="invoiceNetDays" type="number" min="0" value="${Number(p.supplierInvoice?.netDays||0)}" ${sent?'disabled':''} oninput="updateInvoiceDueDate()"></div>
+     <div class="field"><label>Vencimiento neto</label><input id="invoiceDueDate" type="date" value="${safe(p.supplierInvoice?.dueDate||p.postingDate||new Date().toISOString().slice(0,10))}" readonly></div>
+     <div class="field"><label>Método / vía de pago</label><select id="invoicePaymentMethod" ${sent?'disabled':''}>${invoicePaymentOptionsHtml(p.supplierInvoice?.paymentMethod||'K')}</select></div>
+     <div class="field"><label>Bloqueo de pago</label><select id="invoicePaymentBlock" ${sent?'disabled':''}><option value="">Sin bloqueo</option><option value="A">Bloqueado</option></select></div>
+     <div class="field"><label>Referencia de factura</label><input class="sap-proof-readonly" value="${safe(p.invoiceReference||'')}" readonly></div>
+     <div class="field"><label>Referencia de pago</label><input id="invoicePaymentReference" value="${safe(p.supplierInvoice?.paymentReference||r.id)}" ${sent?'disabled':''}></div>
+     <div class="field"><label>Banco propio</label><input id="invoiceOwnBank" value="${safe(p.supplierInvoice?.ownBank||'Kyriba')}" ${sent?'disabled':''}></div>
+    </div>
+   </div>
+   <div class="sap-proof-card" id="invoiceDelivery"><h4>Costes de entrega no planificados</h4><div class="sap-proof-grid"><div class="field"><label>Concepto</label><input id="invoiceDeliveryConcept" value="${safe(p.supplierInvoice?.deliveryConcept||'')}" placeholder="Opcional" ${sent?'disabled':''}></div><div class="field"><label>Cuenta</label><input id="invoiceDeliveryAccount" value="${safe(p.supplierInvoice?.deliveryAccount||'')}" placeholder="Cuenta SAP" ${sent?'disabled':''}></div><div class="field"><label>Importe</label><input id="invoiceDeliveryAmount" type="number" min="0" step=".01" value="${Number(p.supplierInvoice?.deliveryAmount||0)}" ${sent?'disabled':''}></div></div></div>
+   <div class="sap-proof-card" id="invoiceNote"><h4>Nota</h4><div class="field"><label>Comentario para Génesis / Contabilidad</label><textarea id="proofEmployeeComment" ${sent?'disabled':''} placeholder="Escribe cualquier aclaración de la comprobación.">${safe(p.employeeComment||'')}</textarea></div></div>
+   <div class="sap-proof-card" id="invoiceAttachments"><h4>Anexos</h4><div class="field"><label>Adjuntar comprobante</label><input id="proofFile" type="file" accept=".pdf,.xml,.jpg,.jpeg,.png,.xlsx,.xls,.csv,.zip" ${sent?'disabled':''}><div class="file-note">PDF, XML, JPG, PNG o XLSX. Máximo 1.5 MB por envío.</div></div>${p.fileName?`<div class="proof-file" style="margin-top:10px"><span>Archivo actual: <strong>${safe(p.fileName)}</strong></span></div>`:''}</div>
+   <div id="invoiceVerificationResult"></div>
+   ${sent?`<div class="notice"><strong>Comprobación enviada.</strong> Génesis ya tiene disponible el layout SAP de este folio.</div>`:`<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><button class="btn btn-light" onclick="showView('proofs')">← Volver</button><div style="display:flex;gap:8px"><button class="btn btn-light" onclick="saveInvoiceCaptureDraft('${safe(r.id)}')">Guardar borrador</button><button class="btn btn-light" onclick="verifySupplierInvoice('${safe(r.id)}')">Verificar</button><button class="btn btn-orange" onclick="submitSupplierInvoiceCapture('${safe(r.id)}')">Enviar comprobación a Génesis</button></div></div>`}
   </div>
  </div>`
 }
 
-function saveInvoiceCaptureDraft(id){
+function saveInvoiceCaptureDraft(id,silent=false){
  const r=requests.find(x=>x.id===id);if(!r)return;
  if(currentUser.role==='master'||norm(r.requesterEmail)!==norm(currentUser.email)){toast('Sólo el solicitante puede guardar esta captura');return}
- const existing=r.proof||{},rows=(Array.isArray(existing.actualExpenses)&&existing.actualExpenses.length)?existing.actualExpenses:approvedExpenseRows(r),totals=proofTotals(rows);
- r.proof={...existing,
-  invoiceDate:$('proofInvoiceDate')?.value||existing.invoiceDate||'',postingDate:$('proofPostingDate')?.value||existing.postingDate||'',
-  invoiceIssuer:String($('proofInvoiceIssuer')?.value||existing.invoiceIssuer||'').trim(),invoiceReference:String($('proofInvoiceReference')?.value||existing.invoiceReference||'').trim(),
-  invoiceGross:totals.actual,transaction:'Factura',society:'1020',currency:'MXN',
-  employeeComment:String($('proofEmployeeComment')?.value||existing.employeeComment||'').trim(),
-  actualExpenses:rows,approvedTotal:totals.approved,actualTotal:totals.actual,difference:totals.difference,
-  status:existing.status||'Borrador de comprobación',lastSavedAt:new Date().toISOString()
- };
- persist();toast('Captura contable guardada')
+ const existing=r.proof||{},data=invoiceTaxData(r,true),totals=proofTotals(data.lines);
+ const baseline=$('invoiceBaselineDate')?.value||$('proofPostingDate')?.value||'';const netDays=Math.max(0,Number($('invoiceNetDays')?.value)||0);let dueDate=$('invoiceDueDate')?.value||'';
+ if(!dueDate&&baseline){const d=new Date(baseline+'T12:00:00');d.setDate(d.getDate()+netDays);dueDate=d.toISOString().slice(0,10)}
+ const supplierInvoice={transaction:'Factura',companyCode:'1020',supplierId:currentUser.id||'',supplierName:r.requester,supplierRFC:'',supplierReference:String($('proofInvoiceReference')?.value||existing.invoiceReference||'').trim(),documentDate:$('proofInvoiceDate')?.value||existing.invoiceDate||'',postingDate:$('proofPostingDate')?.value||existing.postingDate||'',currency:'MXN',exchangeRate:Number($('invoiceExchangeRate')?.value||1)||1,netAmount:data.net,taxAmount:data.tax,grossAmount:data.gross,headerText:String($('invoiceHeaderText')?.value||'').trim(),assignment:String($('invoiceAssignment')?.value||r.id).trim(),costCenter:r.costProject||'',project:r.costProject||'',travelRequestId:r.id,referenceType:$('invoiceReferenceType')?.value||'SIN_REFERENCIA',purchaseDocument:String($('invoicePurchaseDocument')?.value||'').trim(),purchasePosition:String($('invoicePurchasePosition')?.value||'').trim(),glItems:data.lines.map(x=>({position:x.id,debitCredit:'S',account:x.account,description:x.label,grossAmount:Number(x.actual)||0,netAmount:x.taxBase,taxCode:x.taxCode,taxAmount:x.taxAmount,currency:'MXN',costCenter:r.costProject||'',project:r.costProject||'',assignment:r.id,text:x.label})),taxItems:data.lines.map(x=>({taxCode:x.taxCode,description:x.taxDescription,percentage:x.taxPercentage,deductiblePercentage:x.deductiblePercentage,taxAmount:x.taxAmount,taxBase:x.taxBase,deductibleTax:x.deductibleTax,nondeductibleTax:x.nondeductibleTax,currency:'MXN'})),paymentTerms:String($('invoicePaymentTerms')?.value||'Pago inmediato').trim(),baselineDate:baseline,netDays,dueDate,paymentMethod:$('invoicePaymentMethod')?.value||'K',paymentBlock:$('invoicePaymentBlock')?.value||'',paymentReference:String($('invoicePaymentReference')?.value||r.id).trim(),ownBank:String($('invoiceOwnBank')?.value||'Kyriba').trim(),deliveryConcept:String($('invoiceDeliveryConcept')?.value||'').trim(),deliveryAccount:String($('invoiceDeliveryAccount')?.value||'').trim(),deliveryAmount:Number($('invoiceDeliveryAmount')?.value||0)||0,verificationStatus:verifySupplierInvoice(id,true)?'VALID':'INVALID',updatedAt:new Date().toISOString()};
+ r.proof={...existing,invoiceDate:supplierInvoice.documentDate,postingDate:supplierInvoice.postingDate,invoiceIssuer:r.requester,invoiceReference:supplierInvoice.supplierReference,invoiceNet:data.net,invoiceTax:data.tax,invoiceGross:data.gross,transaction:'Factura',society:'1020',currency:'MXN',employeeComment:String($('proofEmployeeComment')?.value||existing.employeeComment||'').trim(),actualExpenses:data.lines,approvedTotal:totals.approved,actualTotal:totals.actual,difference:totals.difference,supplierInvoice,status:existing.status||'Borrador de comprobación',lastSavedAt:new Date().toISOString()};
+ persist();if(!silent)toast('Captura contable guardada')
 }
 
 saveProofDraft=function(id){
