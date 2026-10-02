@@ -199,6 +199,17 @@ input:focus,select:focus,textarea:focus{border-color:var(--orange);box-shadow:0 
 @media(max-width:1080px){.cards{grid-template-columns:repeat(2,1fr)}.form-grid.three,.question-grid{grid-template-columns:repeat(2,1fr)}.step-labels{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:900px){.auth{grid-template-columns:1fr}.auth-visual{min-height:330px;padding:36px 24px}.auth-copy h1{font-size:37px}.auth-points{display:none}.auth-panel{padding:18px 12px}.app{grid-template-columns:1fr}.sidebar{position:fixed;left:-275px;width:250px;z-index:40;transition:.2s}.sidebar.open{left:0}.mobile-menu{display:inline-flex}.grid-2{grid-template-columns:1fr}.expense-grid{grid-template-columns:1fr}}
 @media(max-width:650px){.concur-flow,.proof-summary{grid-template-columns:1fr}.sap-launch{align-items:flex-start;flex-direction:column}.content{padding:16px 11px 34px}.topbar{padding:0 12px}.cards,.form-grid,.form-grid.three,.question-grid,.summary-grid{grid-template-columns:1fr}.field.full,.field.span2{grid-column:auto}.step-labels{grid-template-columns:repeat(4,1fr)}.step-label span:last-child{display:none}.wizard-top{align-items:flex-start;flex-direction:column}.wizard-actions{flex-direction:column;align-items:stretch}.action-right{display:grid;grid-template-columns:1fr 1fr}.hero{flex-direction:column;align-items:flex-start}.hero-badge{white-space:normal}.top-user .name{display:none}.detail-grid{grid-template-columns:1fr}.detail.full{grid-column:auto}}
+
+/* Captura contable interna estilo SAP */
+.sap-proof-screen{margin-top:16px;border:1px solid #dfe4ea;border-radius:18px;overflow:hidden;background:#f4f6f8;box-shadow:0 12px 30px rgba(15,23,42,.06)}
+.sap-proof-head{padding:20px 22px 14px;background:#fff;border-bottom:1px solid #dfe4ea}
+.sap-proof-head h3{margin:0;color:#0f172a;font-size:22px;letter-spacing:-.02em}.sap-proof-head p{margin:4px 0 0;color:#64748b;font-size:11px}
+.sap-proof-tabs{display:flex;gap:2px;overflow:auto;background:#fff;border-bottom:1px solid #dfe4ea;padding:0 10px}.sap-proof-tabs span{display:block;padding:12px 10px;font-size:10px;font-weight:800;white-space:nowrap;border-bottom:2px solid transparent}.sap-proof-tabs span.active{color:#0757c8;border-bottom-color:#0a6ed1}
+.sap-proof-body{padding:18px}.sap-proof-card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:16px;margin-bottom:14px}.sap-proof-card h4{margin:0 0 13px;font-size:13px;color:#111827}
+.sap-proof-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.sap-proof-grid .full{grid-column:1/-1}.sap-proof-readonly{background:#f8fafc!important;color:#475569}
+.sap-proof-total{font-size:18px;font-weight:850;color:#111827}.sap-proof-note{padding:12px 14px;border-radius:12px;background:#eff6ff;color:#1e3a8a;font-size:11px;line-height:1.5}
+.modal:has(.sap-proof-screen) .modal-card{width:min(1240px,96vw)}
+@media(max-width:800px){.sap-proof-grid{grid-template-columns:1fr}}
 </style>
 
 <style id="durandco-expense-concur-theme">
@@ -440,7 +451,7 @@ label{font-weight:700;color:#334155;letter-spacing:.01em}
     <button data-master data-view="dashboard"><span class="nav-icon">⌂</span>Inicio</button>
     <button data-capturador data-view="new"><span class="nav-icon">＋</span>Solicitar viaje</button>
     <button data-capturador data-view="my"><span class="nav-icon">▤</span>Mis viajes</button>
-    <button data-view="proofs" id="proofNavButton"><span class="nav-icon">▣</span><span id="proofNavLabel">Informes de gastos</span></button>
+    <button data-view="proofs" id="proofNavButton"><span class="nav-icon">▣</span><span id="proofNavLabel">Comprobación</span></button>
     <button data-approver data-view="approvals"><span class="nav-icon">✓</span>Aprobaciones</button>
     <button data-master data-view="all"><span class="nav-icon">◫</span>Monitor de solicitudes</button>
     <button data-master data-view="users"><span class="nav-icon">⚙</span>Administración</button>
@@ -474,8 +485,8 @@ label{font-weight:700;color:#334155;letter-spacing:.01em}
   </div>
   <div class="quick-actions">
     <button type="button" onclick="showView('new')"><span class="quick-icon">＋</span><span><strong>Solicitar viaje</strong><small>Anticipo o tarjeta corporativa</small></span><b>›</b></button>
-    <button type="button" onclick="showView('proofs')"><span class="quick-icon">▤</span><span><strong>Crear informe de gastos</strong><small>Comprobar un folio aprobado</small></span><b>›</b></button>
-    <button type="button" onclick="window.open(SAP_PROOF_URL,'_blank','noopener')"><span class="quick-icon">SAP</span><span><strong>Abrir SAP</strong><small>Registrar el diario de comprobación</small></span><b>↗</b></button>
+    <button type="button" onclick="showView('proofs')"><span class="quick-icon">▤</span><span><strong>Comprobar gastos</strong><small>Captura tus gastos dentro del portal</small></span><b>›</b></button>
+    <button type="button" onclick="showView('proofs')"><span class="quick-icon">SAP</span><span><strong>Comprobación contable</strong><small>El portal prepara el layout para Génesis</small></span><b>›</b></button>
   </div>
   <div class="section-caption"><div><h3>Resumen de actividad</h3><p>Estado de tus solicitudes y comprobaciones.</p></div></div>
   <div class="cards" id="metrics"></div>
@@ -815,7 +826,7 @@ async function changeMyPassword(){
 }
 function downloadServerBackup(){window.location.href=API_BASE+'/admin/backup'}
 const MXN=new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'});
-const MASTER={id:'MASTER',name:'Genesis Leon',email:'gls@durandco.com',password:'123456',role:'master',company:'Grupo Industrial Durandco',position:'Director Corporativo',baseCity:'CDMX',canApproveJefe:true,canApproveDireccion:true};
+const MASTER={id:'MASTER',name:'Génesis León Sarabia',email:'gls@durandco.com',password:'123456',role:'master',company:'Grupo Industrial Durandco',position:'Director Corporativo',baseCity:'CDMX',canApproveJefe:true,canApproveDireccion:true};
 const JEFE={id:'JEFE',name:'Autorizador Jefe Inmediato',email:'jefe.inmediato@empresa.com',password:'Jefe2026!',role:'capturador',company:'Grupo Industrial Durandco',position:'Gerente Ejecutivo / Gerente de Área',baseCity:'CDMX',canApproveJefe:true,canApproveDireccion:false};
 const DIRECCION={id:'DIRECCION',name:'Autorizador Dirección',email:'direccion@empresa.com',password:'Direccion2026!',role:'capturador',company:'Grupo Industrial Durandco',position:'Director Corporativo',baseCity:'CDMX',canApproveJefe:false,canApproveDireccion:true};
 const LUIS={id:'LUIS',name:'Luis Mondragón',email:'lams@durandco.com',password:'Luis2026!',role:'capturador',company:'Grupo Industrial Durandco',position:'Director Corporativo',baseCity:'CDMX',canApproveJefe:false,canApproveDireccion:true};
@@ -909,7 +920,7 @@ const TITLES={
  dashboard:['Inicio','Centro de viajes y gastos'],
  new:['Nueva solicitud de viaje','Captura guiada'],
  my:['Mis viajes','Solicitudes y anticipos'],
- proofs:['Informes de gastos','Comprobación por folio'],
+ proofs:['Comprobación','Gastos reales y preparación contable'],
  approvals:['Autorizaciones','Bandeja de revisión'],
  all:['Monitor de solicitudes','Vista administrativa'],
  users:['Administración','Usuarios, políticas y catálogos']
@@ -2359,7 +2370,7 @@ function openDetail(id,approval=false){
  const infoText=corporate?(r.giovanniNotifiedAt?'Genesis Leon informado el '+new Date(r.giovanniNotifiedAt).toLocaleString('es-MX'):'Genesis Leon será informado al aprobar Luis Mondragón'):'';
  const proofInfo=r.proof?`<div class="detail full"><small>Diario de comprobación SAP</small><strong>${safe(r.proof.journalNumber||'Pendiente')} · ${safe(r.proof.status||'')}</strong></div><div class="detail full"><small>Comentario de validación SAP</small><strong>${safe(r.proof.gioComment||'Pendiente')}</strong></div>`:'';
  const comments=`<div class="detail full"><small>Comentario de aprobación del Jefe</small><strong>${safe(r.jefeComment||'Pendiente')}</strong></div><div class="detail full"><small>Aprobación registrada</small><strong>${signatureText}</strong></div><div class="detail full"><small>${finalCommentLabel}</small><strong>${safe(r.direccionComment||'Pendiente')}</strong></div>${corporate?`<div class="detail full"><small>Información a Genesis Leon</small><strong>${safe(infoText)}</strong></div>`:''}${proofInfo}`;
- let actions=`<div style="display:flex;justify-content:space-between;gap:9px;flex-wrap:wrap;margin-top:14px"><button class="btn btn-light" onclick="downloadRequestSapLayout('${safe(r.id)}')">Layout SAP con cuentas</button><button class="btn btn-primary" onclick="closeModal()">Cerrar</button></div>`;
+ let actions=`<div style="display:flex;justify-content:flex-end;gap:9px;flex-wrap:wrap;margin-top:14px">${currentUser?.id==='MASTER'?`<button class="btn btn-light" onclick="downloadRequestSapLayout('${safe(r.id)}')">Layout SAP</button>`:''}<button class="btn btn-primary" onclick="closeModal()">Cerrar</button></div>`;
  const stage=requestApprovalStage(r);
  if(approval&&['jefe','giovanni','luis'].includes(stage)){
   const positiveLabel=stage==='jefe'?'Aprobar solicitud':stage==='luis'?'Aprobar tarjeta e informar a Genesis Leon':'Aprobar y marcar recurso listo';
