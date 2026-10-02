@@ -2619,18 +2619,40 @@ openProofEditor=function(id){
   ${p.reimbursementStatus==='Reembolsado'?`<div class="notice" style="margin-top:10px"><strong>Tu dinero ya fue reembolsado.</strong> ${p.reimbursementDate?`Fecha: ${safe(p.reimbursementDate)}.`:''} ${p.reimbursementReference?`Referencia: ${safe(p.reimbursementReference)}.`:''}</div>`:`<div class="settlement-actions"><button class="btn btn-orange" onclick="submitSettlement('${safe(r.id)}','employee')">Enviar solicitud de reembolso</button></div>`}
  </div>
 
- <div id="journalSection" class="${canJournal?'':'hidden'}">
-  <div class="sap-launch"><div><h4>${s.corporate?'2':'3'}. Crear diario de comprobación en SAP</h4><p>La liquidación está resuelta. Descarga el layout, registra el diario en SAP y vuelve para enviar el número a Genesis Leon.</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-light" onclick="downloadRequestSapLayout('${safe(r.id)}')">Descargar layout</button><button class="btn btn-orange" onclick="openSapProof('${safe(r.id)}')">Abrir SAP ↗</button></div></div>
-  ${(p.sapOpenedAt||r.sapProofOpenedAt)?`<div class="notice"><strong>SAP abierto:</strong> ${new Date(p.sapOpenedAt||r.sapProofOpenedAt).toLocaleString('es-MX')}</div>`:''}
-  <h4 style="margin:14px 0 4px;color:var(--navy)">${s.corporate?'3':'4'}. Enviar diario a Genesis Leon</h4>
-  <div class="form-grid" style="margin-top:10px">
-   <div class="field"><label>Número de diario SAP <span style="color:var(--danger)">*</span></label><input id="proofJournalNumber" value="${safe(p.journalNumber||'')}" placeholder="Ej. 5105614959/2026"></div>
-   <div class="field"><label>Fecha del diario <span style="color:var(--danger)">*</span></label><input id="proofJournalDate" type="date" value="${safe(p.journalDate||new Date().toISOString().slice(0,10))}"></div>
-   <div class="field full"><label>Soporte adicional <span style="color:var(--muted)">(opcional)</span></label><input id="proofFile" type="file" accept=".pdf,.xlsx,.xls,.csv,.zip,.jpg,.jpeg,.png"><div class="file-note">El número de diario es el dato principal. Puedes adjuntar soporte adicional; máximo 1.5 MB.</div></div>
-   <div class="field full"><label>Comentario para Genesis Leon</label><textarea id="proofEmployeeComment" placeholder="Referencia o aclaración para la validación SAP.">${safe(p.employeeComment||'')}</textarea></div>
+ <div id="journalSection" class="\${canJournal?'':'hidden'}">
+  <div class="sap-proof-screen">
+   <div class="sap-proof-head">
+    <h3>Nueva factura de proveedor</h3>
+    <p>Captura la información de tu comprobación aquí. El portal prepara el layout contable automáticamente; sólo Génesis puede descargarlo.</p>
+   </div>
+   <div class="sap-proof-tabs">
+    <span class="active">Información general</span><span>Posiciones del libro mayor</span><span>Impuesto</span><span>Pago</span><span>Nota</span><span>Anexos</span>
+   </div>
+   <div class="sap-proof-body">
+    <div class="sap-proof-card">
+     <h4>Datos básicos</h4>
+     <div class="sap-proof-grid">
+      <div class="field"><label>Transacción</label><input class="sap-proof-readonly" value="Factura" readonly></div>
+      <div class="field"><label>Sociedad</label><input class="sap-proof-readonly" value="1020 (DURANDCO BUSINESS SUPPORT)" readonly></div>
+      <div class="field"><label>Moneda</label><input class="sap-proof-readonly" value="MXN" readonly></div>
+      <div class="field"><label>Fecha factura <span style="color:var(--danger)">*</span></label><input id="proofInvoiceDate" type="date" value="\${safe(p.invoiceDate||new Date().toISOString().slice(0,10))}"></div>
+      <div class="field"><label>Fecha contabilización <span style="color:var(--danger)">*</span></label><input id="proofPostingDate" type="date" value="\${safe(p.postingDate||new Date().toISOString().slice(0,10))}"></div>
+      <div class="field"><label>Emisor de factura <span style="color:var(--danger)">*</span></label><input id="proofInvoiceIssuer" value="\${safe(p.invoiceIssuer||'')}" placeholder="Proveedor / establecimiento"></div>
+      <div class="field"><label>Importe bruto</label><input id="proofInvoiceGross" class="sap-proof-readonly" value="\${Number(s.actual||0).toFixed(2)}" readonly></div>
+      <div class="field"><label>Referencia <span style="color:var(--danger)">*</span></label><input id="proofInvoiceReference" value="\${safe(p.invoiceReference||'')}" placeholder="Folio / UUID / referencia"></div>
+      <div class="field"><label>Folio de viático</label><input class="sap-proof-readonly" value="\${safe(r.id)}" readonly></div>
+      <div class="field full"><label>Nota / comentario para Génesis</label><textarea id="proofEmployeeComment" placeholder="Aclara cualquier dato necesario para la contabilización.">\${safe(p.employeeComment||'')}</textarea></div>
+      <div class="field full"><label>Anexo opcional</label><input id="proofFile" type="file" accept=".pdf,.xlsx,.xls,.csv,.zip,.jpg,.jpeg,.png"><div class="file-note">Puedes adjuntar soporte adicional; máximo 1.5 MB.</div></div>
+     </div>
+    </div>
+    <div class="sap-proof-card">
+     <h4>Posiciones del libro mayor</h4>
+     <div class="table-wrap"><table class="data"><thead><tr><th>Concepto</th><th>Importe comprobado</th><th>CECO / Proyecto</th><th>Sociedad</th></tr></thead><tbody>\${rows.map(row=>'<tr><td>'+safe(row.label)+'</td><td><strong>'+MXN.format(Number(row.actual)||0)+'</strong></td><td>'+safe(r.costProject||'')+'</td><td>1020</td></tr>').join('')}</tbody></table></div>
+     <div class="sap-proof-note" style="margin-top:12px"><strong>Layout automático:</strong> las cuentas contables, importes, CECO y texto SAP se integran en segundo plano. Este archivo no es visible para el solicitante.</div>
+    </div>
+    <div class="settlement-actions"><button class="btn btn-orange" onclick="saveProofSubmission('\${safe(r.id)}')">Enviar comprobación a Génesis</button></div>
+   </div>
   </div>
-  ${p.fileName?`<div class="proof-file" style="margin-top:12px"><span>Archivo actual: <strong>${safe(p.fileName)}</strong></span><button class="btn btn-light" onclick="downloadProofFile('${safe(r.id)}')">Descargar</button></div>`:''}
-  <div class="settlement-actions"><button class="btn btn-orange" onclick="saveProofSubmission('${safe(r.id)}')">Enviar diario a Genesis Leon</button></div>
  </div>
  <div class="proof-actions"><button class="btn btn-outline" onclick="closeModal()">Cerrar</button><button class="btn btn-light" onclick="saveProofDraft('${safe(r.id)}')">Guardar borrador</button></div>`;
  $('modal').classList.add('open');
