@@ -459,8 +459,7 @@ label{font-weight:700;color:#334155;letter-spacing:.01em}
     <button data-master data-view="dashboard"><span class="nav-icon">⌂</span>Inicio</button>
     <button data-capturador data-view="new"><span class="nav-icon">＋</span>Solicitar viaje</button>
     <button data-capturador data-view="my"><span class="nav-icon">▤</span>Mis viajes</button>
-    <button data-view="proofs" id="proofNavButton"><span class="nav-icon">▣</span><span id="proofNavLabel">Comprobación</span></button>
-    <button data-capturador data-view="invoiceCapture"><span class="nav-icon">▤</span>Factura proveedor</button>
+    <button data-view="proofs" id="proofNavButton"><span class="nav-icon">▣</span><span id="proofNavLabel">Comprobación de gastos</span></button>
     <button data-approver data-view="approvals"><span class="nav-icon">✓</span>Aprobaciones</button>
     <button data-master data-view="all"><span class="nav-icon">◫</span>Monitor de solicitudes</button>
     <button data-master data-view="users"><span class="nav-icon">⚙</span>Administración</button>
@@ -494,8 +493,7 @@ label{font-weight:700;color:#334155;letter-spacing:.01em}
   </div>
   <div class="quick-actions">
     <button type="button" onclick="showView('new')"><span class="quick-icon">＋</span><span><strong>Solicitar viaje</strong><small>Anticipo o tarjeta corporativa</small></span><b>›</b></button>
-    <button type="button" onclick="showView('proofs')"><span class="quick-icon">▤</span><span><strong>Comprobar gastos</strong><small>Captura tus gastos dentro del portal</small></span><b>›</b></button>
-    <button type="button" onclick="showView('invoiceCapture')"><span class="quick-icon">SAP</span><span><strong>Factura proveedor</strong><small>Pantalla independiente de captura contable</small></span><b>›</b></button>
+    <button type="button" onclick="showView('proofs')"><span class="quick-icon">▤</span><span><strong>Comprobación de gastos</strong><small>Después del viaje registra lo que realmente gastaste y tus facturas/comprobantes</small></span><b>›</b></button>
   </div>
   <div class="section-caption"><div><h3>Resumen de actividad</h3><p>Estado de tus solicitudes y comprobaciones.</p></div></div>
   <div class="cards" id="metrics"></div>
@@ -613,13 +611,13 @@ label{font-weight:700;color:#334155;letter-spacing:.01em}
 
 <section class="view" id="proofs">
   <div class="hero">
-    <div><h3 id="proofHeroTitle">Informes de gastos y diarios</h3><p id="proofHeroText">Continúa el mismo folio desde la aprobación del viaje hasta la comprobación y validación del diario SAP.</p></div>
-    <span class="hero-badge" id="proofHeroBadge">Solicitud → Viaje → Informe → Diario → Cierre</span>
+    <div><h3 id="proofHeroTitle">Informes de gastos y diarios</h3><p id="proofHeroText">Después de que tu Jefe inmediato y Génesis aprueben el recurso, usa el mismo folio para registrar lo que realmente gastaste y adjuntar tus facturas/comprobantes.</p></div>
+    <span class="hero-badge" id="proofHeroBadge">Solicitud → Jefe → Génesis → Viaje → Comprobación → Cierre</span>
   </div>
   <div class="cards" id="proofMetrics"></div>
   <div class="panel">
     <div class="panel-head">
-      <div><h3 id="proofPanelTitle">Folios disponibles para crear informe</h3><p id="proofPanelSubtitle">Cada comprobación se crea bajo el mismo folio con el que se aprobó el recurso.</p></div>
+      <div><h3 id="proofPanelTitle">Folios disponibles para crear informe</h3><p id="proofPanelSubtitle">La comprobación se realiza sobre la misma solicitud aprobada; no se crea una solicitud nueva.</p></div>
     </div>
     <div class="filters">
       <input id="proofSearch" placeholder="Buscar folio, diario o solicitante">
@@ -640,11 +638,11 @@ label{font-weight:700;color:#334155;letter-spacing:.01em}
 <section class="view" id="invoiceCapture">
   <div class="concur-page-head">
     <div>
-      <span class="breadcrumb">COMPROBACIÓN / FACTURA PROVEEDOR</span>
-      <h3>Nueva factura de proveedor</h3>
-      <p>Captura la información contable en una pantalla independiente. El layout SAP se genera para Génesis y no es visible para el solicitante.</p>
+      <span class="breadcrumb">VIÁTICOS / COMPROBACIÓN DE GASTOS</span>
+      <h3>Comprobación de gastos</h3>
+      <p>Registra lo que realmente gastaste después del viaje, captura tus facturas y comprobantes y envía la comprobación a Génesis. El layout SAP se genera en segundo plano.</p>
     </div>
-    <button class="btn btn-light" type="button" onclick="showView('proofs')">← Volver a Comprobación</button>
+    <button class="btn btn-light" type="button" onclick="showView('proofs')">← Volver a mis comprobaciones</button>
   </div>
   <div id="invoiceCaptureContent"></div>
 </section>
@@ -943,8 +941,8 @@ const TITLES={
  dashboard:['Inicio','Centro de viajes y gastos'],
  new:['Nueva solicitud de viaje','Captura guiada'],
  my:['Mis viajes','Solicitudes y anticipos'],
- proofs:['Comprobación','Gastos reales y preparación contable'],
- invoiceCapture:['Factura proveedor','Captura contable dentro del portal'],
+ proofs:['Comprobación de gastos','Solicitudes aprobadas y gastos reales'],
+ invoiceCapture:['Comprobación de gastos','Captura de facturas y gastos reales'],
  approvals:['Autorizaciones','Bandeja de revisión'],
  all:['Monitor de solicitudes','Vista administrativa'],
  users:['Administración','Usuarios, políticas y catálogos']
@@ -1893,7 +1891,7 @@ function renderProofs(){
  const isMaster=currentUser.role==='master';
  $('proofHeroTitle').textContent=isMaster?'Validación de comprobaciones en SAP':'Hacer comprobación';
  $('proofHeroText').textContent=isMaster?'Revisa los informes enviados, valida el diario en SAP y cierra el mismo folio del viaje.':'Continúa el folio aprobado: crea el informe, captura gastos, abre SAP, registra el diario y espera la validación de Genesis Leon.';
- $('proofHeroBadge').textContent=isMaster?'Genesis Leon · Diario → Validación → Cierre':'Solicitud → Viaje → Informe → SAP → Cierre';
+ $('proofHeroBadge').textContent=isMaster?'Genesis Leon · Diario → Validación → Cierre':'Solicitud → Jefe → Génesis → Viaje → Comprobación → Cierre';
  $('proofPanelTitle').textContent=isMaster?'Diarios recibidos':'Folios disponibles para crear informe';
  $('proofPanelSubtitle').textContent=isMaster?'Cada diario conserva solicitud, aprobaciones, informe, cuentas SAP y comentario de cierre.':'Cada informe nace de un viaje aprobado y conserva el mismo folio hasta que Genesis Leon valide el diario.';
  const all=proofRowsForUser(),term=norm($('proofSearch')?.value),filter=$('proofStatusFilter')?.value||'';
@@ -2659,9 +2657,9 @@ openProofEditor=function(id){
 
  <div id="journalSection" class="${canJournal?'':'hidden'}">
   <div class="settlement-case" style="background:#fff;border-color:#b8d7ef">
-   <h4>${s.corporate?'2':'3'}. Captura contable</h4>
-   <p>La liquidación ya está resuelta. Continúa en una pantalla nueva para capturar la factura de proveedor.</p>
-   <div class="settlement-actions"><button class="btn btn-orange" type="button" onclick="openInvoiceCaptureFromProof('${safe(r.id)}')">Abrir nueva factura de proveedor →</button></div>
+   <h4>${s.corporate?'2':'3'}. Comprobación de gastos</h4>
+   <p>Continúa con el detalle de tus facturas y comprobantes para terminar la comprobación del viaje.</p>
+   <div class="settlement-actions"><button class="btn btn-orange" type="button" onclick="openInvoiceCaptureFromProof('${safe(r.id)}')">Continuar comprobación de gastos →</button></div>
   </div>
  </div>
  <div class="proof-actions"><button class="btn btn-outline" onclick="closeModal()">Cerrar</button><button class="btn btn-light" onclick="saveProofDraft('${safe(r.id)}')">Guardar borrador</button></div>`;
@@ -2716,7 +2714,7 @@ function renderInvoiceCapture(){
   if(candidates.length===1){r=candidates[0];activeInvoiceRequestId=r.id}
  }
  if(!r){
-  box.innerHTML='<div class="invoice-empty"><h4>Selecciona primero una comprobación</h4><p>Abre un folio desde Comprobación y, cuando la liquidación esté resuelta, usa “Abrir nueva factura de proveedor”.</p><button class="btn btn-orange" onclick="showView(\'proofs\')">Ir a Comprobación</button></div>';return
+  box.innerHTML='<div class="invoice-empty"><h4>Selecciona una solicitud aprobada</h4><p>Entra a Comprobación de gastos y abre el folio del viaje que quieres comprobar.</p><button class="btn btn-orange" onclick="showView(\'proofs\')">Ir a Comprobación de gastos</button></div>';return
  }
  if(norm(r.requesterEmail)!==norm(currentUser.email)){activeInvoiceRequestId='';renderInvoiceCapture();return}
  const p=r.proof||{},rows=(Array.isArray(p.actualExpenses)&&p.actualExpenses.length)?p.actualExpenses:approvedExpenseRows(r),s=settlementInfo(r,rows),taxData=invoiceTaxData(r,false);
@@ -2727,7 +2725,7 @@ function renderInvoiceCapture(){
  box.innerHTML=`<div class="sap-proof-screen">
   <div class="sap-proof-head">
    <div style="display:flex;justify-content:space-between;gap:20px;align-items:flex-start;flex-wrap:wrap">
-    <div><h3>Nueva factura de proveedor</h3><p>Folio ${safe(r.id)} · Informe ${safe(expenseReportId(r))} · ${safe(r.destination)}</p></div>
+    <div><h3>Comprobación de gastos</h3><p>Folio ${safe(r.id)} · ${safe(r.requester)} · ${safe(r.destination)} · Registra lo realmente gastado</p></div>
     <div style="display:flex;gap:22px;flex-wrap:wrap">
      <div class="sap-kpi"><small>Recurso</small><strong>${MXN.format(resourceAmountForRequest(r))}</strong></div>
      <div class="sap-kpi"><small>Comprobado</small><strong>${MXN.format(s.actual)}</strong></div>
@@ -2738,7 +2736,7 @@ function renderInvoiceCapture(){
   <div class="sap-proof-tabs"><span class="active" onclick="scrollSupplierInvoiceSection('invoiceGeneral',this)">Información general</span><span onclick="scrollSupplierInvoiceSection('invoiceReferences',this)">Referencias de documentos de compras</span><span onclick="scrollSupplierInvoiceSection('invoiceGl',this)">Posiciones del libro mayor</span><span onclick="scrollSupplierInvoiceSection('invoiceTax',this)">Impuesto</span><span onclick="scrollSupplierInvoiceSection('invoicePayment',this)">Pago</span><span onclick="scrollSupplierInvoiceSection('invoiceDelivery',this)">Costes de entrega no planificados</span><span onclick="scrollSupplierInvoiceSection('invoiceNote',this)">Nota</span><span onclick="scrollSupplierInvoiceSection('invoiceAttachments',this)">Anexos</span></div>
   <div class="sap-proof-body">
    <div class="sap-proof-card" id="invoiceGeneral">
-    <h4>Información general · Datos básicos</h4>
+    <h4>Información general de la comprobación</h4>
     <div class="sap-proof-grid">
      <div class="field"><label>Transacción</label><input class="sap-proof-readonly" value="Factura" readonly></div>
      <div class="field"><label>Sociedad</label><input class="sap-proof-readonly" value="1020 (DURANDCO BUSINESS SUPPORT)" readonly></div>
