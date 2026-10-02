@@ -1612,7 +1612,7 @@ function nextActionForRequest(r){
  if(ps==='Pendiente de comprobación')return{label:'Crear informe de gastos',detail:'Captura el gasto real bajo el mismo folio.',action:`openProofEditor('${safe(r.id)}')`,button:'Crear informe'};
  if(ps==='Borrador de comprobación')return{label:'Continuar informe de gastos',detail:'Tu comprobación está guardada como borrador.',action:`openProofEditor('${safe(r.id)}')`,button:'Continuar'};
  if(ps==='Corrección solicitada')return{label:'Corregir informe',detail:r.proof?.gioComment||'Genesis Leon solicitó una corrección.',action:`openProofEditor('${safe(r.id)}')`,button:'Corregir'};
- if(ps==='Pendiente validación SAP')return{label:'Diario enviado',detail:'Genesis Leon está validando el diario en SAP.',action:`openProofReview('${safe(r.id)}')`,button:'Ver envío'};
+ if(ps==='Pendiente validación SAP')return{label:'Comprobación enviada',detail:'Génesis recibió el layout y realizará la contabilización en SAP.',action:`openProofReview('${safe(r.id)}')`,button:'Ver envío'};
  if(ps==='Viáticos validados')return{label:'Proceso cerrado',detail:'El diario fue validado en SAP y el folio quedó concluido.',action:`openProofReview('${safe(r.id)}')`,button:'Ver cierre'};
  return{label:'Ver proceso',detail:'Consulta la ruta completa del folio.',action:`openDetail('${safe(r.id)}')`,button:'Abrir'}
 }
@@ -1999,15 +1999,25 @@ function openProofReview(id){
  $('modal').classList.add('open')
 }
 function validateProof(id,action){
- if(currentUser.role!=='master'){toast('Sólo Genesis Leon puede validar comprobaciones');return}
+ if(currentUser.role!=='master'){toast('Sólo Génesis León Sarabia puede validar comprobaciones');return}
  const r=requests.find(x=>x.id===id);if(!r?.proof)return;
  const comment=String($('proofGenesisComment')?.value||'').trim();
  if(!comment){toast('Escribe el comentario de validación');return}
  const validated=action==='validated';
+ if(validated){
+  const journalNumber=String($('proofGenesisJournalNumber')?.value||r.proof.journalNumber||'').trim();
+  const journalDate=$('proofGenesisJournalDate')?.value||r.proof.journalDate||'';
+  if(!journalNumber||!journalDate){toast('Captura el número y la fecha del diario SAP antes de cerrar');return}
+  r.proof.journalNumber=journalNumber;
+  r.proof.journalDate=journalDate;
+  r.proof.journalPostedAt=new Date().toISOString();
+  r.proof.journalPostedBy=currentUser.name;
+ }
  r.proof.status=validated?'Viáticos validados':'Corrección solicitada';
  r.proof.gioComment=comment;r.proof.validatedAt=new Date().toISOString();r.proof.validatedBy=currentUser.name;r.proof.closedAt=validated?new Date().toISOString():'';
- r.history=r.history||[];r.history.push({stage:validated?'Viáticos validados en SAP':'Corrección de comprobación solicitada',by:currentUser.name,date:new Date().toISOString(),comment});
- persist();closeModal();renderProofs();renderAll();renderMy();renderDashboard();toast(validated?'Diario validado en SAP · proceso cerrado':'Corrección enviada al solicitante')
+ r.history=r.history||[];
+ r.history.push({stage:validated?'Layout contabilizado y viáticos validados en SAP':'Corrección de comprobación solicitada',by:currentUser.name,date:new Date().toISOString(),comment});
+ persist();closeModal();renderProofs();renderAll();renderMy();renderDashboard();toast(validated?'Diario registrado y viáticos cerrados':'Corrección enviada al solicitante')
 }
 function csvCell(value){const s=String(value??'');return /[",\n]/.test(s)?`"${s.replace(/"/g,'""')}"`:s}
 function downloadRequestSapLayout(id){
@@ -2578,6 +2588,7 @@ updateProofReconciliation=function(id){
  if(employee)employee.classList.toggle('hidden',!(s.employeeBalance>0));
  const returnAmount=$('proofReturnAmount');if(returnAmount)returnAmount.value=s.companyBalance.toFixed(2);
  const reimbursementAmount=$('proofReimbursementAmount');if(reimbursementAmount)reimbursementAmount.value=s.employeeBalance.toFixed(2);
+ const invoiceGross=$('proofInvoiceGross');if(invoiceGross)invoiceGross.value=s.actual.toFixed(2);
  if(journal)journal.classList.toggle('hidden',!settlementResolved(r,rows));
 };
 
@@ -2816,15 +2827,19 @@ openProofReview=function(id){
  ${proofExpenseTable(r)}
  ${settlementDetail}
  <div class="detail-grid" style="margin-top:13px">
-  <div class="detail"><small>Número de diario SAP</small><strong>${safe(p.journalNumber||'Pendiente')}</strong></div>
+  <div class="detail"><small>Emisor de factura</small><strong>${safe(p.invoiceIssuer||'Pendiente')}</strong></div>
+  <div class="detail"><small>Referencia</small><strong>${safe(p.invoiceReference||'Pendiente')}</strong></div>
+  <div class="detail"><small>Fecha factura</small><strong>${safe(p.invoiceDate||'—')}</strong></div>
+  <div class="detail"><small>Fecha contabilización</small><strong>${safe(p.postingDate||'—')}</strong></div>
+  <div class="detail"><small>Importe bruto</small><strong>${MXN.format(Number(p.invoiceGross||p.actualTotal)||0)}</strong></div>
+  <div class="detail"><small>Estatus del expediente</small><span class="status ${proofStatusClass(status)}">${safe(status==='Pendiente validación SAP'?'Comprobación enviada · Layout listo':status)}</span></div>
+  <div class="detail"><small>Número de diario SAP</small><strong>${safe(p.journalNumber||'Pendiente de Génesis')}</strong></div>
   <div class="detail"><small>Fecha del diario</small><strong>${safe(p.journalDate||'—')}</strong></div>
-  <div class="detail"><small>Estatus del expediente</small><span class="status ${proofStatusClass(status)}">${safe(status)}</span></div>
-  <div class="detail"><small>Soporte SAP</small><strong>${safe(p.fileName||'Sin archivo adicional')}</strong></div>
   <div class="detail full"><small>Comentario del colaborador</small><strong>${safe(p.employeeComment||'Sin comentario')}</strong></div>
-  <div class="detail full"><small>Comentario de Genesis Leon</small><strong>${safe(p.gioComment||'Pendiente')}</strong></div>
+  <div class="detail full"><small>Comentario de Génesis</small><strong>${safe(p.gioComment||'Pendiente')}</strong></div>
  </div>
- <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px"><button class="btn btn-light" onclick="downloadRequestSapLayout('${safe(r.id)}')">Descargar layout SAP</button>${p.fileData?`<button class="btn btn-light" onclick="downloadProofFile('${safe(r.id)}')">Descargar soporte SAP</button>`:''}${!isMaster&&settlementResolved(r,rows)?`<button class="btn btn-light" onclick="openProofEditor('${safe(r.id)}')">Continuar expediente</button>`:''}</div>
- ${sapPending?`<div class="field" style="margin-top:14px"><label>Comentario de validación SAP</label><textarea id="proofGenesisComment">Viáticos validados en SAP.</textarea></div><div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px"><button class="btn btn-danger" onclick="validateProof('${safe(r.id)}','correction')">Solicitar corrección</button><button class="btn btn-orange" onclick="validateProof('${safe(r.id)}','validated')">Validar en SAP</button></div>`:`<div style="display:flex;justify-content:flex-end;margin-top:14px"><button class="btn btn-primary" onclick="closeModal()">Cerrar</button></div>`}`;
+ <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">${isMaster?`<button class="btn btn-orange" onclick="downloadRequestSapLayout('${safe(r.id)}')">⇩ Descargar layout SAP</button>`:''}${p.fileData?`<button class="btn btn-light" onclick="downloadProofFile('${safe(r.id)}')">Descargar soporte</button>`:''}${!isMaster&&settlementResolved(r,rows)&&status!=='Pendiente validación SAP'&&status!=='Viáticos validados'?`<button class="btn btn-light" onclick="openProofEditor('${safe(r.id)}')">Continuar expediente</button>`:''}</div>
+ ${sapPending?`<div class="sap-proof-card" style="margin-top:14px"><h4>Registro en SAP · Génesis</h4><div class="sap-proof-grid"><div class="field"><label>Número de diario SAP <span style="color:var(--danger)">*</span></label><input id="proofGenesisJournalNumber" value="${safe(p.journalNumber||'')}" placeholder="Ej. 5105614959/2026"></div><div class="field"><label>Fecha del diario <span style="color:var(--danger)">*</span></label><input id="proofGenesisJournalDate" type="date" value="${safe(p.journalDate||new Date().toISOString().slice(0,10))}"></div><div class="field full"><label>Comentario de validación SAP</label><textarea id="proofGenesisComment">Viáticos validados en SAP.</textarea></div></div></div><div style="display:flex;justify-content:flex-end;gap:9px;margin-top:14px"><button class="btn btn-danger" onclick="validateProof('${safe(r.id)}','correction')">Solicitar corrección</button><button class="btn btn-orange" onclick="validateProof('${safe(r.id)}','validated')">Registrar diario y cerrar</button></div>`:`<div style="display:flex;justify-content:flex-end;margin-top:14px"><button class="btn btn-primary" onclick="closeModal()">Cerrar</button></div>`}`;
  $('modal').classList.add('open')
 };
 
@@ -2849,7 +2864,7 @@ requestLifecycleState=function(r){
   {label:'Viaje',detail:approved?(ended?'Finalizado':(start&&now<start?'Próximo':'En curso')):'Por autorizar',state:approved?(ended?'done':'current'):'pending'},
   {label:'Comprobación',detail:proofStarted?MXN.format(settlementInfo(r,rows).actual):ended&&approved?'Pendiente':'No disponible',state:proofStarted?'done':ended&&approved?'current':'pending'},
   {label:'Liquidación',detail:settlementDetail,state:settlementState},
-  {label:'Diario SAP',detail:ps==='Viáticos validados'?'Validado':ps==='Pendiente validación SAP'?'En validación':p.journalNumber?'Capturado':'Pendiente',state:ps==='Viáticos validados'?'done':ps==='Pendiente validación SAP'?'current':p.journalNumber?'done':'pending'}
+  {label:'Contabilización SAP',detail:ps==='Viáticos validados'?'Validada':ps==='Pendiente validación SAP'?'Layout listo para Génesis':p.journalNumber?'Diario '+p.journalNumber:'Pendiente',state:ps==='Viáticos validados'?'done':ps==='Pendiente validación SAP'?'current':p.journalNumber?'done':'pending'}
  ]
 };
 nextActionForRequest=function(r){
@@ -2862,7 +2877,7 @@ nextActionForRequest=function(r){
  if(['Borrador de comprobación','Corrección solicitada','Corrección de liquidación'].includes(ps))return{label:ps.includes('Corrección')?'Corregir comprobación':'Continuar comprobación',detail:r.proof?.gioComment||'Continúa la liquidación del folio.',action:`openProofEditor('${safe(r.id)}')`,button:'Continuar'};
  if(ps==='Devolución enviada - validación Genesis')return{label:'Devolución enviada',detail:'Genesis Leon está validando el comprobante de transferencia.',action:`openProofReview('${safe(r.id)}')`,button:'Ver devolución'};
  if(ps==='Reembolso en proceso')return{label:'Reembolso en proceso',detail:'Durandco tiene pendiente reembolsar tu saldo a favor.',action:`openProofReview('${safe(r.id)}')`,button:'Ver estatus'};
- if(['Devolución validada','Reembolso realizado'].includes(ps))return{label:ps==='Reembolso realizado'?'Tu dinero ya fue reembolsado':'Devolución validada',detail:'La liquidación quedó resuelta. Continúa con el diario SAP.',action:`openProofEditor('${safe(r.id)}')`,button:'Continuar a SAP'};
+ if(['Devolución validada','Reembolso realizado'].includes(ps))return{label:ps==='Reembolso realizado'?'Tu dinero ya fue reembolsado':'Devolución validada',detail:'La liquidación quedó resuelta. Envía la comprobación; el layout se genera para Génesis.',action:`openProofEditor('${safe(r.id)}')`,button:'Enviar comprobación'};
  if(ps==='Pendiente validación SAP')return{label:'Diario enviado',detail:'Genesis Leon está validando el diario en SAP.',action:`openProofReview('${safe(r.id)}')`,button:'Ver envío'};
  if(ps==='Viáticos validados')return{label:'Proceso cerrado',detail:'Liquidación y diario SAP validados.',action:`openProofReview('${safe(r.id)}')`,button:'Ver cierre'};
  return{label:'Abrir expediente',detail:'Consulta la ruta completa del folio.',action:`openProofEditor('${safe(r.id)}')`,button:'Abrir'}
@@ -2872,8 +2887,8 @@ nextActionForRequest=function(r){
 renderProofs=function(){
  const isMaster=currentUser.role==='master';
  $('proofHeroTitle').textContent=isMaster?'Liquidaciones y diarios':'Hacer comprobación';
- $('proofHeroText').textContent=isMaster?'Valida devoluciones, registra reembolsos y después valida el diario SAP hasta cerrar el folio.':'Compara el recurso entregado contra tu gasto real, liquida la diferencia y termina con el diario SAP.';
- $('proofHeroBadge').textContent=isMaster?'Devolución / Reembolso → SAP → Cierre':'Recurso → Gasto → Saldo → SAP → Cierre';
+ $('proofHeroText').textContent=isMaster?'Valida liquidaciones, descarga layouts y registra el diario SAP hasta cerrar el folio.':'Captura tus gastos dentro del portal, liquida la diferencia y envía la comprobación. El layout SAP sólo lo recibe Génesis.';
+ $('proofHeroBadge').textContent=isMaster?'Liquidación → Layout → SAP → Cierre':'Recurso → Gasto → Comprobación → Cierre';
  $('proofPanelTitle').textContent=isMaster?'Expedientes recibidos':'Folios disponibles';
  $('proofPanelSubtitle').textContent=isMaster?'Cada folio conserva la solicitud, recurso, comprobación, liquidación y diario.':'Todo ocurre bajo el mismo folio aprobado.';
  const all=proofRowsForUser(),term=norm($('proofSearch')?.value),filter=$('proofStatusFilter')?.value||'';
@@ -2884,7 +2899,56 @@ renderProofs=function(){
  const validated=all.filter(r=>requestProofStatus(r)==='Viáticos validados').length;
  const toProof=all.filter(r=>['Pendiente de comprobación','Borrador de comprobación','Corrección solicitada','Corrección de liquidación'].includes(requestProofStatus(r))).length;
  $('proofMetrics').innerHTML=(isMaster?
-  [['Devoluciones pendientes',returns,'↩'],['Reembolsos pendientes',reimbursements,'$'],['Diarios SAP',pendingSap,'⌁'],['Cerrados',validated,'✓']]:
+  [['Devoluciones pendientes',returns,'↩'],['Reembolsos pendientes',reimbursements,'
+  [['Por comprobar',toProof,'▤'],['Liquidación pendiente',returns+reimbursements,'↔'],['Enviado a Génesis',pendingSap,'⌁'],['Cerrados',validated,'✓']]
+ ).map(x=>`<div class="card metric"><div><small>${x[0]}</small><strong>${x[1]}</strong></div><div class="metric-icon">${x[2]}</div></div>`).join('');
+ if(!rows.length){$('proofTable').innerHTML='<div class="empty">No hay folios disponibles para mostrar.</div>';return}
+ $('proofTable').innerHTML=`<div class="table-wrap"><table class="data"><thead><tr><th>Solicitud / informe</th>${isMaster?'<th>Solicitante</th>':''}<th>Viaje</th><th>${isMaster?'Recurso / monto':'Recurso'}</th><th>Saldo</th><th>Estatus</th><th>Acción</th></tr></thead><tbody>${rows.map(r=>{
+  const status=requestProofStatus(r),ended=tripEnded(r),p=r.proof||{},proofRows=Array.isArray(p.actualExpenses)&&p.actualExpenses.length?p.actualExpenses:null,s=proofRows?settlementInfo(r,proofRows):null;
+  const saldo=s?(s.companyBalance>0?`Empresa ${MXN.format(s.companyBalance)}`:s.employeeBalance>0?`Empleado ${MXN.format(s.employeeBalance)}`:'$0.00'):'—';
+  let action='';
+  if(isMaster){
+   const label=status==='Devolución enviada - validación Genesis'?'Revisar devolución':status==='Reembolso en proceso'?'Revisar reembolso':status==='Pendiente validación SAP'?'Descargar layout / contabilizar':'Ver expediente';
+   action=`<button class="btn ${['Devolución enviada - validación Genesis','Reembolso en proceso','Pendiente validación SAP'].includes(status)?'btn-orange':'btn-light'}" onclick="openProofReview('${safe(r.id)}')">${label}</button>`;
+  }else if(!ended)action='<button class="btn btn-light" disabled>Disponible al regresar</button>';
+  else if(['Pendiente validación SAP','Viáticos validados','Devolución enviada - validación Genesis','Reembolso en proceso'].includes(status))action=`<button class="btn btn-light" onclick="openProofReview('${safe(r.id)}')">Ver estatus</button>`;
+  else action=`<button class="btn btn-orange" onclick="openProofEditor('${safe(r.id)}')">${['Devolución validada','Reembolso realizado'].includes(status)?'Enviar comprobación':status.includes('Corrección')?'Corregir':'Hacer comprobación'}</button>`;
+  return `<tr><td><span class="folio-chip">${safe(r.id)}</span><br><span class="report-chip">${safe(expenseReportId(r))}</span></td>${isMaster?`<td>${safe(r.requester)}<br><small>${safe(r.requesterEmail)}</small></td>`:''}<td>${safe(r.startDate)} al ${safe(r.endDate)}</td><td><strong>${MXN.format(resourceAmountForRequest(r))}</strong></td><td>${safe(saldo)}</td><td><span class="status ${proofStatusClass(status)}">${safe(ended?(status==='Pendiente validación SAP'?'Comprobación enviada · Layout listo':status):'Disponible al regresar')}</span></td><td>${action}</td></tr>`
+ }).join('')}</tbody></table></div>`
+};
+
+/* Dashboard de Genesis Leon: sin monto total, enfocado en pendientes operativos */
+renderDashboard=function(){
+ const total=requests.length;
+ const toProof=requests.filter(r=>approvedForProof(r)&&tripEnded(r)&&['Pendiente de comprobación','Borrador de comprobación','Corrección solicitada','Corrección de liquidación'].includes(requestProofStatus(r))).length;
+ const returns=requests.filter(r=>requestProofStatus(r)==='Devolución enviada - validación Genesis').length;
+ const reimbursements=requests.filter(r=>requestProofStatus(r)==='Reembolso en proceso').length;
+ $('metrics').innerHTML=[['Solicitudes',total,'▤'],['Por comprobar',toProof,'↔'],['Devoluciones pendientes',returns,'↩'],['Reembolsos pendientes',reimbursements,'$']].map(x=>`<div class="card metric"><div><small>${x[0]}</small><strong>${x[1]}</strong></div><div class="metric-icon">${x[2]}</div></div>`).join('');
+ $('recent').innerHTML=table(requests.slice(0,5),false);
+ const summary=['Pendiente Aprobación Jefe','Pendiente Genesis Leon','Pendiente Luis Mondragón','Aprobada · Recurso listo','Aprobada · Tarjeta autorizada','Rechazada'];
+ $('statusSummary').innerHTML=summary.map(s=>`<div class="status-row"><span>${s}</span><strong>${requests.filter(r=>r.status===s||(s==='Aprobada · Recurso listo'&&r.status==='Aprobada')).length}</strong></div>`).join('')
+};
+
+/* Mostrar los nuevos estados en el filtro de comprobación */
+(function(){
+ const f=$('proofStatusFilter');
+ if(f)f.innerHTML=`<option value="">Todos los estatus</option>
+ <option>Pendiente de comprobación</option><option>Borrador de comprobación</option>
+ <option>Devolución enviada - validación Genesis</option><option>Devolución validada</option>
+ <option>Reembolso en proceso</option><option>Reembolso realizado</option>
+ <option>Pendiente validación SAP</option><option>Viáticos validados</option>
+ <option>Corrección de liquidación</option><option>Corrección solicitada</option>`;
+})();
+
+
+(async function initPortal(){
+ try{const data=await apiRequest('/me');await startSession(data.user)}
+ catch{$('authScreen').style.display='grid';$('appShell').style.display='none';$('loginEmail').focus()}
+})();
+</script>
+</body>
+</html>
+],['Layouts listos',pendingSap,'⌁'],['Cerrados',validated,'✓']]:
   [['Por comprobar',toProof,'▤'],['Liquidación pendiente',returns+reimbursements,'↔'],['Diario SAP',pendingSap,'⌁'],['Cerrados',validated,'✓']]
  ).map(x=>`<div class="card metric"><div><small>${x[0]}</small><strong>${x[1]}</strong></div><div class="metric-icon">${x[2]}</div></div>`).join('');
  if(!rows.length){$('proofTable').innerHTML='<div class="empty">No hay folios disponibles para mostrar.</div>';return}
