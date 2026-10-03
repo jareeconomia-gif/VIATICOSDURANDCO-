@@ -52,8 +52,8 @@ function exactSapTemplateBuffer(){
   if(parts.length!==21476)throw new Error('La plantilla SAP instalada no coincide con el XLSX oficial.');
   const buffer=Buffer.from(parts,'base64');
   const sha=crypto.createHash('sha256').update(buffer).digest('hex');
-  if(buffer.length!==16106||sha!=='119820b331592317084fbdd6a32e3ea0b7203fa15fe1b563d39825589509cff6'){
-    throw new Error('La plantilla SAP instalada no es exactamente Factura de proveedor_ES(1).XLSX.');
+  if(buffer.length!==16106||sha!=='3a97b14a2d0b139f7f64ff2777d56983230a98f9dbd843eb6a7e9d39ea2d95f4'){
+    throw new Error('La plantilla SAP instalada no coincide byte por byte con la plantilla oficial Factura de proveedor_ES.XLSX.');
   }
   exactSapTemplateBufferCache=buffer;
   return exactSapTemplateBufferCache;
