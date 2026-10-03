@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const XLSX = require('xlsx');
+const AdmZip = require('adm-zip');
 const { DatabaseSync, backup } = require('node:sqlite');
 
 const PORT = Number(process.env.PORT || 3000);
@@ -44,104 +45,169 @@ function setSapValue(row,name,value,occurrence=0){
   const indexes=SAP_LAYOUT_COLS.get(name)||[];
   if(indexes[occurrence]!==undefined)row[indexes[occurrence]]=value??null;
 }
-function buildSapLayoutBuffer(request, requesterProfile={}){
-  // IMPORTANTE: esta salida replica la estructura exacta de
-  // "Factura de proveedor_ES(1).XLSX": hoja Data, 115 columnas A:DK,
-  // filas 1-6 de cabecera SAP y datos a partir de la fila 7.
+
+let exactSapTemplateBufferCache=null;
+function exactSapTemplateBuffer(){
+  if(exactSapTemplateBufferCache)return exactSapTemplateBufferCache;
+  const parts=[1,2,3,4,5].map(n=>fs.readFileSync(path.join(ROOT,`sap-template-p${n}.b64`),'utf8').trim()).join('');
+  exactSapTemplateBufferCache=Buffer.from(parts,'base64');
+  return exactSapTemplateBufferCache;
+}
+function xmlEscape(value){
+  return String(value??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
+}
+function setExactTemplateCell(rowXml,col,rowNumber,value,kind='string'){
+  const ref=`${col}${rowNumber}`;
+  const rx=new RegExp(`<c r="${ref}"([^>]*)\\/>|<c r="${ref}"([^>]*)>[\\s\\S]*?<\\/c>`);
+  const match=rowXml.match(rx);
+  if(!match)throw Object.assign(new Error(`La plantilla SAP no contiene la celda esperada ${ref}.`),{statusCode:500});
+  let attrs=(match[1]??match[2]??'').replace(/\s+t="[^"]*"/g,'');
+  let cell='';
+  if(value===null||value===undefined||value===''){
+    cell=`<c r="${ref}"${attrs}/>`;
+  }else if(kind==='number'||kind==='date'){
+    const numeric=kind==='date'?excelDateSerial(value):Number(value);
+    if(!Number.isFinite(numeric))throw Object.assign(new Error(`Valor numérico inválido para ${ref}.`),{statusCode:400});
+    cell=`<c r="${ref}"${attrs}><v>${numeric}</v></c>`;
+  }else{
+    cell=`<c r="${ref}"${attrs} t="inlineStr"><is><t xml:space="preserve">${xmlEscape(value)}</t></is></c>`;
+  }
+  return rowXml.replace(rx,cell);
+}
+function invoiceGroupsForExactLayout(request,requesterProfile={}){
   const proof=request?.proof||{};
-  const expenses=Array.isArray(proof.expenseLines)&&proof.expenseLines.length
-    ? proof.expenseLines
-    : Array.isArray(proof.actualExpenses)&&proof.actualExpenses.length
-      ? proof.actualExpenses.map((x,i)=>({
-          id:x.id||String(i+1),documentDate:proof.invoiceDate||proof.postingDate||'',postingDate:proof.postingDate||proof.invoiceDate||'',
-          invoiceNumber:proof.invoiceReference||request.id,vendor:proof.invoiceIssuer||request.requester,rfc:'',concept:x.label||x.name||'Gasto de viaje',
-          amount:Number(x.actual)||0,currency:proof.currency||'MXN',taxCode:x.taxCode||'',costCenter:request.costProject||'',project:request.project||'',
-          account:x.account||'',reference:request.id,text:x.label||x.name||'',taxBase:Number(x.taxBase??x.actual)||0
-        }))
-      : [];
-  if(!expenses.length)throw Object.assign(new Error('La comprobación no contiene renglones de gasto.'),{statusCode:400});
-
-  const sapVendorId=String(requesterProfile.sapVendorId||proof.sapVendorId||'').trim();
-  if(!sapVendorId){
-    throw Object.assign(new Error('Falta configurar el Emisor SAP (10) del solicitante en Administración → Usuarios. El layout no se generará con un nombre inventado.'),{statusCode:409});
+  if(Array.isArray(proof.sapInvoices)&&proof.sapInvoices.length)return proof.sapInvoices;
+  const legacy=Array.isArray(proof.expenseLines)?proof.expenseLines:[];
+  if(legacy.length){
+    return legacy.map((line,index)=>({
+      invoiceId:String(index+1),
+      companyCode:proof.companyCode||'4000',
+      operation:'1',
+      invoicingParty:requesterProfile.sapVendorId||proof.sapVendorId||'',
+      reference:line.invoiceNumber||line.reference||request.id,
+      documentDate:line.documentDate||proof.documentDate||proof.invoiceDate||'',
+      postingDate:line.postingDate||proof.postingDate||line.documentDate||'',
+      documentType:'KR',
+      headerText:proof.headerText||('VIATICOS '+request.id),
+      currency:line.currency||proof.currency||'MXN',
+      grossAmount:Number(line.grossAmount??line.amount??0)||0,
+      dueCalculationBaseDate:proof.baselineDate||line.postingDate||line.documentDate||'',
+      taxDeterminationDate:line.postingDate||line.documentDate||'',
+      countryReference1:'N/A',
+      taxReportingDate:line.postingDate||line.documentDate||'',
+      taxFulfillmentDate:line.postingDate||line.documentDate||'',
+      positions:[{
+        companyCode:proof.companyCode||'4000',
+        glAccount:line.account||'',
+        itemText:line.text||line.uuid||line.concept||'',
+        debitCredit:'S',
+        amount:Number(line.netAmount??line.taxBase??line.amount??0)||0,
+        taxCode:line.taxCode||'',
+        assignment:line.assignment||line.reference||line.invoiceNumber||'',
+        costCenter:line.costCenter||request.costProject||''
+      }]
+    }));
   }
-  if(sapVendorId.length>10){
-    throw Object.assign(new Error('El Emisor SAP del solicitante excede los 10 caracteres permitidos por la plantilla.'),{statusCode:409});
-  }
-
-  // Estas seis filas y las 115 posiciones corresponden al archivo SAP entregado por la usuaria.
-  const rows=[
-    ["Importar facturas de proveedor",null,"Mostrar las columnas al final de cada sección para ver campos adicionales.",...Array(112).fill(null)],
-    ["Actual.p.últ.vez:",...Array(114).fill(null)],
-    Array(115).fill(null),
-    SAP_LAYOUT_SECTIONS.slice(),
-    SAP_LAYOUT_TECH_HEADERS.slice(),
-    SAP_LAYOUT_DISPLAY_HEADERS.slice()
+  return[];
+}
+function validateExactInvoice(invoice,index,sapVendorId){
+  const required=[
+    ['Referencia',invoice.reference],
+    ['Fecha de documento',invoice.documentDate],
+    ['Fecha de contabilización',invoice.postingDate],
+    ['Texto de cabecera',invoice.headerText],
+    ['Moneda',invoice.currency],
+    ['Importe bruto',invoice.grossAmount],
+    ['Fecha base para vencimiento',invoice.dueCalculationBaseDate],
+    ['Fecha para determinar tipos impositivos',invoice.taxDeterminationDate],
+    ['Fecha de declaración fiscal',invoice.taxReportingDate],
+    ['Fecha de cumplimiento fiscal',invoice.taxFulfillmentDate]
   ];
+  for(const [label,value] of required){
+    if(value===null||value===undefined||String(value).trim()===''||((label==='Importe bruto')&&!(Number(value)>0))){
+      throw Object.assign(new Error(`Factura ${index+1}: falta ${label}.`),{statusCode:400});
+    }
+  }
+  if(!sapVendorId)throw Object.assign(new Error('Falta configurar el Emisor SAP (10) del solicitante en Administración → Usuarios.'),{statusCode:409});
+  if(String(sapVendorId).length>10)throw Object.assign(new Error('El Emisor SAP del solicitante excede los 10 caracteres permitidos.'),{statusCode:409});
+  if(!Array.isArray(invoice.positions)||!invoice.positions.length)throw Object.assign(new Error(`Factura ${index+1}: agrega al menos una posición del libro mayor.`),{statusCode:400});
+  invoice.positions.forEach((p,pi)=>{
+    [['Cuenta',p.glAccount],['Texto posición',p.itemText],['Importe',p.amount],['Indicador IVA',p.taxCode],['Asignación',p.assignment],['Centro de coste',p.costCenter]].forEach(([label,value])=>{
+      if(value===null||value===undefined||String(value).trim()===''||((label==='Importe')&&!(Number(value)>0))){
+        throw Object.assign(new Error(`Factura ${index+1}, posición ${pi+1}: falta ${label}.`),{statusCode:400});
+      }
+    });
+  });
+}
+function buildSapLayoutBuffer(request, requesterProfile={}){
+  const proof=request?.proof||{};
+  const sapVendorId=String(requesterProfile.sapVendorId||proof.sapVendorId||'').trim();
+  const invoices=invoiceGroupsForExactLayout(request,requesterProfile);
+  if(!invoices.length)throw Object.assign(new Error('La comprobación no contiene facturas para generar el layout SAP.'),{statusCode:400});
+  invoices.forEach((inv,i)=>validateExactInvoice(inv,i,sapVendorId));
 
-  const companyCode=String(proof.companyCode||proof.society||'1020').slice(0,4);
-  const headerText=String(proof.headerText||('VIATICOS '+request.id)).slice(0,25);
-  const paymentReference=String(proof.paymentReference||request.id).slice(0,30);
+  const zip=new AdmZip(exactSapTemplateBuffer());
+  const sheetEntry=zip.getEntry('xl/worksheets/sheet1.xml');
+  if(!sheetEntry)throw Object.assign(new Error('La plantilla SAP exacta no contiene la hoja Data esperada.'),{statusCode:500});
+  let xml=sheetEntry.getData().toString('utf8');
+  const row7Match=xml.match(/<row r="7"[^>]*>[\s\S]*?<\/row>/);
+  if(!row7Match)throw Object.assign(new Error('La plantilla SAP exacta no contiene la fila modelo 7.'),{statusCode:500});
+  const baseRow=row7Match[0];
+  const generated=[];
+  let rowNumber=7;
 
-  expenses.forEach((line,index)=>{
-    const row=Array(115).fill(null);
-    const gross=Math.max(0,Number(line.amount??line.grossAmount??line.actual)||0);
-    const taxBase=Math.max(0,Number(line.taxBase??line.netAmount??gross)||0);
-    const documentDate=line.documentDate||proof.documentDate||proof.invoiceDate||line.postingDate||proof.postingDate||'';
-    const postingDate=line.postingDate||proof.postingDate||documentDate;
-    const invoiceNumber=String(line.invoiceNumber||line.folio||line.reference||request.id).slice(0,16);
-    const assignment=String(line.reference||invoiceNumber||request.id).slice(0,18);
-    const lineText=String(line.text||line.description||line.concept||'Gasto de viaje').slice(0,50);
+  invoices.forEach((invoice,invoiceIndex)=>{
+    const companyCode=String(invoice.companyCode||'4000').slice(0,4);
+    const invoiceId=String(invoice.invoiceId||invoiceIndex+1);
+    const operation=String(invoice.operation||'1').slice(0,1);
+    const documentType=String(invoice.documentType||'KR').slice(0,2);
+    const headerText=String(invoice.headerText||('VIATICOS '+request.id)).slice(0,25);
+    const currency=String(invoice.currency||'MXN').slice(0,5);
+    const countryReference1=String(invoice.countryReference1||'N/A').slice(0,80);
 
-    row[0]=index+1; // *ID de factura
-    setSapValue(row,'COMPANYCODE',companyCode,0);
-    setSapValue(row,'SUPPLIERINVOICETRANSACTIONTYPE',1);
-    setSapValue(row,'INVOICINGPARTY',sapVendorId);
-    setSapValue(row,'SUPPLIERINVOICEIDBYINVCGPARTY',invoiceNumber);
-    setSapValue(row,'DOCUMENTDATE',excelDateSerial(documentDate));
-    setSapValue(row,'POSTINGDATE',excelDateSerial(postingDate));
-    setSapValue(row,'ACCOUNTINGDOCUMENTTYPE','KR');
-    setSapValue(row,'ACCOUNTINGDOCUMENTHEADERTEXT',headerText);
-    setSapValue(row,'DOCUMENTCURRENCY',String(line.currency||proof.currency||'MXN').slice(0,5));
-    setSapValue(row,'INVOICEGROSSAMOUNT',gross);
-    setSapValue(row,'DUECALCULATIONBASEDATE',excelDateSerial(proof.baselineDate||postingDate));
-    if(proof.paymentMethod)setSapValue(row,'PAYMENTMETHOD',String(proof.paymentMethod).slice(0,1));
-    setSapValue(row,'PAYMENTREFERENCE',paymentReference);
-    setSapValue(row,'ASSIGNMENTREFERENCE',assignment,0);
-    setSapValue(row,'SUPPLIERPOSTINGLINEITEMTEXT',lineText);
-    setSapValue(row,'INVOICERECEIPTDATE',excelDateSerial(documentDate));
-    setSapValue(row,'TAXDETERMINATIONDATE',excelDateSerial(postingDate));
-    if(proof.houseBank||proof.ownBank)setSapValue(row,'HOUSEBANK',String(proof.houseBank||proof.ownBank).slice(0,5));
-    setSapValue(row,'TAXREPORTINGDATE',excelDateSerial(postingDate));
-    setSapValue(row,'TAXFULFILLMENTDATE',excelDateSerial(postingDate));
-    // SUPPLIERINVOICEUPLOADFILEUUID NO se llena con el UUID fiscal:
-    // es un campo técnico distinto del archivo SAP.
-    setSapValue(row,'INVOICINGPARTYACCOUNT',sapVendorId);
-
-    // Posición de libro mayor (BT:DK del layout exacto)
-    setSapValue(row,'COMPANYCODE',companyCode,1);
-    setSapValue(row,'GLACCOUNT',String(line.account||'').slice(0,10));
-    setSapValue(row,'SUPPLIERINVOICEITEMTEXT',lineText);
-    setSapValue(row,'DEBITCREDITCODE','S');
-    setSapValue(row,'SUPPLIERINVOICEITEMAMOUNT',taxBase);
-    setSapValue(row,'TAXCODE',String(line.taxCode||'').slice(0,2));
-    setSapValue(row,'ASSIGNMENTREFERENCE',assignment,1);
-    setSapValue(row,'COSTCENTER',String(line.costCenter||request.costProject||'').slice(0,10));
-    setSapValue(row,'WBSELEMENT',String(line.project||request.project||'').slice(0,24));
-    setSapValue(row,'TAXBASEAMOUNTINTRANSCRCY',taxBase);
-    rows.push(row);
+    invoice.positions.forEach((position)=>{
+      let row=baseRow
+        .replace(/<row r="7"/,'<row r="'+rowNumber+'"')
+        .replace(/r="([A-Z]+)7"/g,(_m,col)=>'r="'+col+rowNumber+'"');
+      const values=[
+        ['A',invoiceId,'string'],
+        ['B',companyCode,'string'],
+        ['C',operation,'string'],
+        ['D',sapVendorId,'string'],
+        ['E',String(invoice.reference||'').slice(0,16),'string'],
+        ['F',invoice.documentDate,'date'],
+        ['G',invoice.postingDate,'date'],
+        ['H',documentType,'string'],
+        ['I',headerText,'string'],
+        ['J',currency,'string'],
+        ['K',Number(invoice.grossAmount),'number'],
+        ['N',invoice.dueCalculationBaseDate,'date'],
+        ['AP',invoice.taxDeterminationDate,'date'],
+        ['AT',countryReference1,'string'],
+        ['AW',invoice.taxReportingDate,'date'],
+        ['AX',invoice.taxFulfillmentDate,'date'],
+        ['BT',String(position.companyCode||companyCode).slice(0,4),'string'],
+        ['BU',String(position.glAccount||'').slice(0,10),'string'],
+        ['BV',String(position.itemText||'').slice(0,50),'string'],
+        ['BW',String(position.debitCredit||'S').slice(0,1),'string'],
+        ['BX',Number(position.amount),'number'],
+        ['BY',String(position.taxCode||'').slice(0,2),'string'],
+        ['CA',String(position.assignment||'').slice(0,18),'string'],
+        ['CB',String(position.costCenter||'').slice(0,10),'string']
+      ];
+      for(const [col,value,kind] of values)row=setExactTemplateCell(row,col,rowNumber,value,kind);
+      // Los demás campos permanecen exactamente como están en la plantilla original: vacíos.
+      generated.push(row);
+      rowNumber++;
+    });
   });
 
-  const ws=XLSX.utils.aoa_to_sheet(rows,{cellDates:false});
-  ws['!ref']='A1:DK'+rows.length;
-  // Anchos y columnas ocultas copiados del archivo exacto proporcionado.
-  ws['!cols']=SAP_LAYOUT_EXACT_WIDTHS.map((wch,i)=>({wch,hidden:SAP_LAYOUT_EXACT_HIDDEN.has(i+1)}));
-  ws['!rows']=[{hpt:30},{hpt:15},{hpt:15},{hpt:15},{hpt:30},{hpt:48},...expenses.map(()=>({hpt:20}))];
-
-  const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,ws,'Data');
-  wb.Workbook={Sheets:[{name:'Data',Hidden:0}]};
-  return XLSX.write(wb,{type:'buffer',bookType:'xlsx',compression:true});
+  xml=xml.replace(/<row r="7"[^>]*>[\s\S]*?<\/row>(?:<row r="8"[^>]*>[\s\S]*?<\/row>)?/,generated.join(''));
+  const lastRow=Math.max(7,rowNumber-1);
+  xml=xml.replace(/<dimension ref="A1:DK\d+"\/>/,`<dimension ref="A1:DK${lastRow}"/>`);
+  xml=xml.replace(/activeCell="A\d+" sqref="A\d+:AX\d+"/,`activeCell="A${lastRow}" sqref="A${lastRow}:AX${lastRow}"`);
+  zip.updateFile('xl/worksheets/sheet1.xml',Buffer.from(xml,'utf8'));
+  return zip.toBuffer();
 }
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
