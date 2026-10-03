@@ -10,7 +10,6 @@
     "node": ">=22"
   },
   "dependencies": {
-    "xlsx": "^0.18.5",
     "adm-zip": "^0.5.16"
   }
 }
