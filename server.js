@@ -19,6 +19,8 @@ const MAX_BODY = 20 * 1024 * 1024;
 
 const SAP_LAYOUT_TECH_HEADERS=["3","COMPANYCODE","SUPPLIERINVOICETRANSACTIONTYPE","INVOICINGPARTY","SUPPLIERINVOICEIDBYINVCGPARTY","DOCUMENTDATE","POSTINGDATE","ACCOUNTINGDOCUMENTTYPE","ACCOUNTINGDOCUMENTHEADERTEXT","DOCUMENTCURRENCY","INVOICEGROSSAMOUNT","BUSINESSPLACE","PAYMENTBLOCKINGREASON","DUECALCULATIONBASEDATE","MANUALCASHDISCOUNT","PAYMENTMETHOD","PAYMENTMETHODSUPPLEMENT","PAYMENTREFERENCE","INVOICEREFERENCE","INVOICEREFERENCEFISCALYEAR","PAYMENTTERMS","CASHDISCOUNT1DAYS","CASHDISCOUNT1PERCENT","CASHDISCOUNT2DAYS","CASHDISCOUNT2PERCENT","NETPAYMENTDAYS","FIXEDCASHDISCOUNT","UNPLANNEDDELIVERYCOST","UNPLANNEDDELIVERYCOSTTAXCODE","UNPLNDDELIVCOSTTAXJURISDICTION","REFERENCEDOCUMENTCATEGORY","ASSIGNMENTREFERENCE","SUPPLIERPOSTINGLINEITEMTEXT","BUSINESSSECTIONCODE","PAYTSLIPWTHREFSUBSCRIBER","PAYTSLIPWTHREFCHECKDIGIT","PAYTSLIPWTHREFREFERENCE","BUSINESSAREA","INVOICERECEIPTDATE","DELIVERYOFGOODSREPORTINGCNTRY","ISEUTRIANGULARDEAL","TAXDETERMINATIONDATE","HOUSEBANK","HOUSEBANKACCOUNT","UNPLNDDELIVERYCOSTTAXCOUNTRY","JRNLENTRYCNTRYSPECIFICREF1","JRNLENTRYCNTRYSPECIFICDATE1","BPBANKACCOUNTINTERNALID","TAXREPORTINGDATE","TAXFULFILLMENTDATE","JRNLENTRYCNTRYSPECIFICBP1","JRNLENTRYCNTRYSPECIFICBP2","JRNLENTRYCNTRYSPECIFICDATE2","JRNLENTRYCNTRYSPECIFICDATE3","JRNLENTRYCNTRYSPECIFICDATE4","JRNLENTRYCNTRYSPECIFICDATE5","JRNLENTRYCNTRYSPECIFICREF2","JRNLENTRYCNTRYSPECIFICREF3","JRNLENTRYCNTRYSPECIFICREF4","JRNLENTRYCNTRYSPECIFICREF5","IBAN","ONETIMEACCTCNTRYSPECIFICREF1","PAYMENTREASON","NUMBEROFPAGES","SUPPLYINGCOUNTRY1","STATECENTRALBANKPAYMENTREASON1","INVOICINGPARTYACCOUNT","SUPPLIERINVOICEORIGIN","BUSINESSNETWORKORIGIN","SUPPLIERINVOICEUPLOADFILEUUID","SUPPLIERINVOICEUPLOADORIGIN","COMPANYCODE","GLACCOUNT","SUPPLIERINVOICEITEMTEXT","DEBITCREDITCODE","SUPPLIERINVOICEITEMAMOUNT","TAXCODE","TAXJURISDICTION","ASSIGNMENTREFERENCE","COSTCENTER","PROFITCENTER","INTERNALORDER","WBSELEMENT","BUSINESSAREA","BUSINESSPROCESS","CONTROLLINGAREA","COSTCTRACTIVITYTYPE","COSTOBJECT","FUNCTIONALAREA","ISNOTCASHDISCOUNTLIABLE","PERSONNELNUMBER","SALESORDER","SALESORDERITEM","PROJECTNETWORK","NETWORKACTIVITY","WORKITEM","COMMITMENTITEM","FUNDSMANAGEMENTCENTER","TAXBASEAMOUNTINTRANSCRCY","FUNDS","GRANT","QUANTITYUNIT","QUANTITY","PARTNERBUSINESSAREA","SERVICEDOCUMENTTYPE","SERVICEDOCUMENT","SERVICEDOCUMENTITEM","TAXCOUNTRY","FINANCIALTRANSACTIONTYPE","BUDGETPERIOD","EARMARKEDFUNDSDOCUMENT","EARMARKEDFUNDSDOCUMENTITEM","EMRKDFNDSITMISCOMPLETED","JOINTVENTURERECOVERYCODE","MATERIAL"];
 const SAP_LAYOUT_DISPLAY_HEADERS=["*ID de factura","*Sociedad (4)","*Operación (1)_x000D_\n1=Factura; 2=Abono","*Emisor de factura (10)","Referencia (16)","*Fecha de documento","*Fecha de contabilización","*Clase de documento (2)","Texto de cabecera de documento (25)","*Moneda (5)","*Importe bruto de factura en moneda del documento","Lugar comercial (4)","Clave para bloqueo de pago (1)","Fecha base para cálculo del vencimiento","Importe del descuento en moneda del documento","Vía de pago (1)","Suplemento para la vía de pago (2)","Referencia de pago (30)","Ref.factura: número de documento de ref.para ref.factura (10)","Ejercicio de la factura correspondiente (para abonos) (4)","Clave de condiciones de pago (4)","Días del descuento por pronto pago 1 (3)","Porcentaje de descuento 1 (5)","Días del descuento por pronto pago 2 (3)","Porcentaje de descuento 2 (5)","Plazo para condición de pago neto (3)","Condición de pago fija (1)","Costes indirectos de adquisición no planificados","Indicador de IVA (2)","Domicilio fiscal (15)","Tipo documento referencia (1)","Número de asignación (18)","Texto posición (50)","Sección de retención de impuestos (4)","Nº de usuario ESR (11)","Dígito de control ESR (2)","Número de referencia ESR/QR (27)","División (4)","Fecha de recepción de factura","País/Región declarante p.entrega mercancías dentro de la CE (3)","Indicador: Operación triangular dentro de UE (1)","Fecha para determinar tipos impositivos","Clave breve para banco propio (5)","Clave breve para un banco/cuenta (5)","País/Región de declaración fiscal (3)","Referencia 1 específica de país/región en el documento (80)","Fecha 1 específica de país/región en el documento","Tipo de banco interlocutor (4)","Fecha de declaración fiscal","Fecha de cumplimiento fiscal","Interl.comercial 1 específico de país/región en documento (10)","Interl.comercial 2 específico de país/región en documento (10)","Fecha 2 específica de país/región en el documento","Fecha 3 específica de país/región en el documento","Fecha 4 específica de país/región en el documento","Fecha 5 específica de país/región en el documento","Referencia específica de país/región 2 en el documento (25)","Referencia 3 específica de país/región en el documento (25)","Referencia 4 específica de país/región en el documento (50)","Referencia 5 específica de país/región en el documento (50)","IBAN (International Bank Account Number) (34)","Referencia específica de país/regió en datos de cuenta CpD (140)","Motivo de pago (4)","Cantidad de páginas de factura (3)","País/región proveedor/a (3)","Indicador del banco central regional (3)","Cuenta asociada (10)","Origen documento verificación facturas logística (1)","Origen del documento de red empresarial (2)","UUID de carga de factura (16)","Origen de factura cargada (2)","Sociedad (4)","Cuenta (10)","Texto posición (50)","Indicador debe/haber (1)_x000D_\nS=Debe; H=Haber","Importe en la moneda del documento","Indicador de IVA (2)","Domicilio fiscal (15)","Asignación (18)","Centro de coste (10)","Centro de beneficio (10)","Número de orden (12)","Elemento PEP (24)","División (4)","Proceso empresarial (12)","Sociedad CO (4)","Clase de actividad (6)","Objeto de coste (12)","Área funcional (16)","No es apto para descuento por pronto pago (1)","Número de personal (8)","Número del pedido de cliente (10)","Posición de pedido de cliente (6)","Número de grafo para imputación (12)","Número de operación (4)","ID de work item (10)","Posición presupuestaria (14)","Centro gestor (16)","Importe base impuesto moneda documento","Fondo (10)","Subvención (20)","Unidad de medida base (3)","Cantidad (13)","División del interlocutor (4)","Clase de documento de servicio (4)","ID de documento de servicio (10)","ID de posición de documento de servicio (6)","País/Región de declaración fiscal (3)","Cl.movimiento (3)","Período de presupuesto (10)","Número de documento presupuestario (10)","Posición de documento: Documento presupuestario (3)","Indicador de conclusión para la posición de documento (1)","Indicador de recuperación (2)","Número de material (40)"];
+const SAP_LAYOUT_EXACT_WIDTHS=[32,15,30,25,31,21,27,25,37,18,51,21,32,41,47,17,36,25,63,59,34,42,31,42,31,39,28,50,30,32,31,27,29,39,26,27,34,14,31,65,50,41,35,38,39,44,51,32,29,30,64,64,51,51,51,51,61,61,61,61,47,66,20,36,29,42,23,54,45,31,31,15,13,25,43,36,22,23,21,22,26,22,19,14,26,17,24,22,21,47,24,35,35,38,25,22,30,23,40,12,17,27,15,31,36,34,45,39,26,29,41,53,59,31,25];
+const SAP_LAYOUT_EXACT_HIDDEN=new Set([15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,43,44,45,47,48,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115]);
 const SAP_LAYOUT_SECTIONS=Array(115).fill("3");
 SAP_LAYOUT_SECTIONS[1]="Datos cab.";
 SAP_LAYOUT_SECTIONS[71]="Pos.cta.mayor";
@@ -42,7 +44,10 @@ function setSapValue(row,name,value,occurrence=0){
   const indexes=SAP_LAYOUT_COLS.get(name)||[];
   if(indexes[occurrence]!==undefined)row[indexes[occurrence]]=value??null;
 }
-function buildSapLayoutBuffer(request){
+function buildSapLayoutBuffer(request, requesterProfile={}){
+  // IMPORTANTE: esta salida replica la estructura exacta de
+  // "Factura de proveedor_ES(1).XLSX": hoja Data, 115 columnas A:DK,
+  // filas 1-6 de cabecera SAP y datos a partir de la fila 7.
   const proof=request?.proof||{};
   const expenses=Array.isArray(proof.expenseLines)&&proof.expenseLines.length
     ? proof.expenseLines
@@ -50,54 +55,70 @@ function buildSapLayoutBuffer(request){
       ? proof.actualExpenses.map((x,i)=>({
           id:x.id||String(i+1),documentDate:proof.invoiceDate||proof.postingDate||'',postingDate:proof.postingDate||proof.invoiceDate||'',
           invoiceNumber:proof.invoiceReference||request.id,vendor:proof.invoiceIssuer||request.requester,rfc:'',concept:x.label||x.name||'Gasto de viaje',
-          amount:Number(x.actual)||0,currency:proof.currency||'MXN',taxCode:x.taxCode||'3Z',costCenter:request.costProject||'',project:request.costProject||'',
+          amount:Number(x.actual)||0,currency:proof.currency||'MXN',taxCode:x.taxCode||'',costCenter:request.costProject||'',project:request.project||'',
           account:x.account||'',reference:request.id,text:x.label||x.name||'',taxBase:Number(x.taxBase??x.actual)||0
         }))
       : [];
   if(!expenses.length)throw Object.assign(new Error('La comprobación no contiene renglones de gasto.'),{statusCode:400});
+
+  const sapVendorId=String(requesterProfile.sapVendorId||proof.sapVendorId||'').trim();
+  if(!sapVendorId){
+    throw Object.assign(new Error('Falta configurar el Emisor SAP (10) del solicitante en Administración → Usuarios. El layout no se generará con un nombre inventado.'),{statusCode:409});
+  }
+  if(sapVendorId.length>10){
+    throw Object.assign(new Error('El Emisor SAP del solicitante excede los 10 caracteres permitidos por la plantilla.'),{statusCode:409});
+  }
+
+  // Estas seis filas y las 115 posiciones corresponden al archivo SAP entregado por la usuaria.
   const rows=[
     ["Importar facturas de proveedor",null,"Mostrar las columnas al final de cada sección para ver campos adicionales.",...Array(112).fill(null)],
     ["Actual.p.últ.vez:",...Array(114).fill(null)],
     Array(115).fill(null),
-    SAP_LAYOUT_SECTIONS,
-    SAP_LAYOUT_TECH_HEADERS,
-    SAP_LAYOUT_DISPLAY_HEADERS
+    SAP_LAYOUT_SECTIONS.slice(),
+    SAP_LAYOUT_TECH_HEADERS.slice(),
+    SAP_LAYOUT_DISPLAY_HEADERS.slice()
   ];
-  const companyCode=String(proof.companyCode||proof.society||'1020');
-  const issuer=String(proof.issuerUserId||request.requester||'').slice(0,50);
+
+  const companyCode=String(proof.companyCode||proof.society||'1020').slice(0,4);
   const headerText=String(proof.headerText||('VIATICOS '+request.id)).slice(0,25);
   const paymentReference=String(proof.paymentReference||request.id).slice(0,30);
+
   expenses.forEach((line,index)=>{
     const row=Array(115).fill(null);
-    const amount=Math.max(0,Number(line.amount??line.grossAmount??line.actual)||0);
-    const taxBase=Math.max(0,Number(line.taxBase??line.netAmount??amount)||0);
+    const gross=Math.max(0,Number(line.amount??line.grossAmount??line.actual)||0);
+    const taxBase=Math.max(0,Number(line.taxBase??line.netAmount??gross)||0);
     const documentDate=line.documentDate||proof.documentDate||proof.invoiceDate||line.postingDate||proof.postingDate||'';
     const postingDate=line.postingDate||proof.postingDate||documentDate;
     const invoiceNumber=String(line.invoiceNumber||line.folio||line.reference||request.id).slice(0,16);
-    const assignment=String(line.reference||line.uuid||request.id).slice(0,18);
+    const assignment=String(line.reference||invoiceNumber||request.id).slice(0,18);
     const lineText=String(line.text||line.description||line.concept||'Gasto de viaje').slice(0,50);
-    row[0]=index+1;
+
+    row[0]=index+1; // *ID de factura
     setSapValue(row,'COMPANYCODE',companyCode,0);
     setSapValue(row,'SUPPLIERINVOICETRANSACTIONTYPE',1);
-    setSapValue(row,'INVOICINGPARTY',String(line.invoicingParty||line.supplierAccount||issuer).slice(0,50));
+    setSapValue(row,'INVOICINGPARTY',sapVendorId);
     setSapValue(row,'SUPPLIERINVOICEIDBYINVCGPARTY',invoiceNumber);
     setSapValue(row,'DOCUMENTDATE',excelDateSerial(documentDate));
     setSapValue(row,'POSTINGDATE',excelDateSerial(postingDate));
     setSapValue(row,'ACCOUNTINGDOCUMENTTYPE','KR');
     setSapValue(row,'ACCOUNTINGDOCUMENTHEADERTEXT',headerText);
     setSapValue(row,'DOCUMENTCURRENCY',String(line.currency||proof.currency||'MXN').slice(0,5));
-    setSapValue(row,'INVOICEGROSSAMOUNT',amount);
+    setSapValue(row,'INVOICEGROSSAMOUNT',gross);
     setSapValue(row,'DUECALCULATIONBASEDATE',excelDateSerial(proof.baselineDate||postingDate));
-    setSapValue(row,'PAYMENTMETHOD',String(proof.paymentMethod||'').slice(0,1));
+    if(proof.paymentMethod)setSapValue(row,'PAYMENTMETHOD',String(proof.paymentMethod).slice(0,1));
     setSapValue(row,'PAYMENTREFERENCE',paymentReference);
     setSapValue(row,'ASSIGNMENTREFERENCE',assignment,0);
     setSapValue(row,'SUPPLIERPOSTINGLINEITEMTEXT',lineText);
     setSapValue(row,'INVOICERECEIPTDATE',excelDateSerial(documentDate));
     setSapValue(row,'TAXDETERMINATIONDATE',excelDateSerial(postingDate));
-    setSapValue(row,'HOUSEBANK',String(proof.houseBank||proof.ownBank||'').slice(0,5));
+    if(proof.houseBank||proof.ownBank)setSapValue(row,'HOUSEBANK',String(proof.houseBank||proof.ownBank).slice(0,5));
     setSapValue(row,'TAXREPORTINGDATE',excelDateSerial(postingDate));
     setSapValue(row,'TAXFULFILLMENTDATE',excelDateSerial(postingDate));
-    setSapValue(row,'SUPPLIERINVOICEUPLOADFILEUUID',String(line.uuid||'').replace(/-/g,'').slice(0,16));
+    // SUPPLIERINVOICEUPLOADFILEUUID NO se llena con el UUID fiscal:
+    // es un campo técnico distinto del archivo SAP.
+    setSapValue(row,'INVOICINGPARTYACCOUNT',sapVendorId);
+
+    // Posición de libro mayor (BT:DK del layout exacto)
     setSapValue(row,'COMPANYCODE',companyCode,1);
     setSapValue(row,'GLACCOUNT',String(line.account||'').slice(0,10));
     setSapValue(row,'SUPPLIERINVOICEITEMTEXT',lineText);
@@ -110,15 +131,18 @@ function buildSapLayoutBuffer(request){
     setSapValue(row,'TAXBASEAMOUNTINTRANSCRCY',taxBase);
     rows.push(row);
   });
+
   const ws=XLSX.utils.aoa_to_sheet(rows,{cellDates:false});
   ws['!ref']='A1:DK'+rows.length;
-  ws['!cols']=Array.from({length:115},(_,i)=>({wch:i===32||i===73?34:i===5||i===6||i===38||i===41||i===48||i===49?14:i===10||i===75||i===98?18:16}));
-  ws['!rows']=[{hpt:24},{hpt:18},{hpt:8},{hpt:18},{hpt:30},{hpt:48},...expenses.map(()=>({hpt:20}))];
+  // Anchos y columnas ocultas copiados del archivo exacto proporcionado.
+  ws['!cols']=SAP_LAYOUT_EXACT_WIDTHS.map((wch,i)=>({wch,hidden:SAP_LAYOUT_EXACT_HIDDEN.has(i+1)}));
+  ws['!rows']=[{hpt:30},{hpt:15},{hpt:15},{hpt:15},{hpt:30},{hpt:48},...expenses.map(()=>({hpt:20}))];
+
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'Data');
+  wb.Workbook={Sheets:[{name:'Data',Hidden:0}]};
   return XLSX.write(wb,{type:'buffer',bookType:'xlsx',compression:true});
 }
-
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
 fs.mkdirSync(BACKUP_DIR, { recursive: true });
@@ -801,8 +825,10 @@ async function handleApi(req, res, pathname) {
     if (!request.proof?.submittedAt && !['Enviada','En revisión','Reintegro validado','Finalizada','Pendiente validación SAP','Viáticos validados'].includes(String(request.proof?.status || ''))) {
       return json(res, 409, { error: 'La comprobación todavía no ha sido enviada.' });
     }
+    const requesterRow=db.prepare('SELECT * FROM users WHERE lower(email)=? AND active=1').get(normalize(request.requesterEmail));
+    const requesterProfile=publicUser(requesterRow)||{};
     let buffer;
-    try { buffer = buildSapLayoutBuffer(request); }
+    try { buffer = buildSapLayoutBuffer(request,requesterProfile); }
     catch (error) { return json(res, error.statusCode || 400, { error: error.message || 'No se pudo generar el layout.' }); }
     const stamp=nowIso();
     request.proof=request.proof||{};
