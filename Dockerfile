@@ -5,7 +5,7 @@ WORKDIR /app
 COPY package.json ./
 RUN npm install --omit=dev
 
-COPY server.js index.html sap-template.b64 ./
+COPY server.js index.html ./
 
 ENV NODE_ENV=production
 ENV PORT=3000
