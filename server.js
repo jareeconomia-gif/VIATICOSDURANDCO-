@@ -4,7 +4,6 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const XLSX = require('xlsx');
 const AdmZip = require('adm-zip');
 const { DatabaseSync, backup } = require('node:sqlite');
 
@@ -50,7 +49,13 @@ let exactSapTemplateBufferCache=null;
 function exactSapTemplateBuffer(){
   if(exactSapTemplateBufferCache)return exactSapTemplateBufferCache;
   const parts=[1,2,3,4,5].map(n=>fs.readFileSync(path.join(ROOT,`sap-template-p${n}.b64`),'utf8').trim()).join('');
-  exactSapTemplateBufferCache=Buffer.from(parts,'base64');
+  if(parts.length!==21476)throw new Error('La plantilla SAP instalada no coincide con el XLSX oficial.');
+  const buffer=Buffer.from(parts,'base64');
+  const sha=crypto.createHash('sha256').update(buffer).digest('hex');
+  if(buffer.length!==16106||sha!=='119820b331592317084fbdd6a32e3ea0b7203fa15fe1b563d39825589509cff6'){
+    throw new Error('La plantilla SAP instalada no es exactamente Factura de proveedor_ES(1).XLSX.');
+  }
+  exactSapTemplateBufferCache=buffer;
   return exactSapTemplateBufferCache;
 }
 function xmlEscape(value){
@@ -104,7 +109,9 @@ function invoiceGroupsForExactLayout(request,requesterProfile={}){
         amount:Number(line.netAmount??line.taxBase??line.amount??0)||0,
         taxCode:line.taxCode||'',
         assignment:line.assignment||line.reference||line.invoiceNumber||'',
-        costCenter:line.costCenter||request.costProject||''
+        costCenter:line.costCenter||request.costProject||'',
+        wbsElement:line.project||request.project||'',
+        taxBase:Number(line.taxBase??line.netAmount??line.amount??0)||0
       }]
     }));
   }
@@ -193,7 +200,9 @@ function buildSapLayoutBuffer(request, requesterProfile={}){
         ['BX',Number(position.amount),'number'],
         ['BY',String(position.taxCode||'').slice(0,2),'string'],
         ['CA',String(position.assignment||'').slice(0,18),'string'],
-        ['CB',String(position.costCenter||'').slice(0,10),'string']
+        ['CB',String(position.costCenter||'').slice(0,10),'string'],
+        ['CE',String(position.wbsElement||'').slice(0,24),'string'],
+        ['CU',Number(position.taxBase??position.amount),'number']
       ];
       for(const [col,value,kind] of values)row=setExactTemplateCell(row,col,rowNumber,value,kind);
       // Los demás campos permanecen exactamente como están en la plantilla original: vacíos.
