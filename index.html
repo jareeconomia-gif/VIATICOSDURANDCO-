@@ -2130,7 +2130,7 @@ function defaultJefeApproverId(excludeId=''){
 function openUserEditor(id=''){
  const existing=users.find(x=>x.id===id);
  const defaultJefeId=defaultJefeApproverId(id);
- const u=existing||{id:'',name:'',email:'',password:'',role:'capturador',company:COMPANIES[0]||'',position:POSITIONS[0]?.name||'',baseCity:DESTINATIONS[0]||'',canApproveJefe:false,jefeApproverId:defaultJefeId,direccionApproverId:'MASTER'};
+ const u=existing||{id:'',name:'',email:'',sapVendorId:'',password:'',role:'capturador',company:COMPANIES[0]||'',position:POSITIONS[0]?.name||'',baseCity:DESTINATIONS[0]||'',canApproveJefe:false,jefeApproverId:defaultJefeId,direccionApproverId:'MASTER'};
  if(existing&&!u.jefeApproverId)u.jefeApproverId=defaultJefeId;
  const editing=Boolean(id),lockedMaster=u.id==='MASTER';
  const jefeOptions=jefeApproverOptions(u.id);
@@ -2138,6 +2138,7 @@ function openUserEditor(id=''){
  <div class="form-grid">
   <div class="field full"><label>Nombre completo</label><input id="cfgUserName" value="${safe(u.name)}"></div>
   <div class="field full"><label>Correo electrónico</label><input id="cfgUserEmail" type="email" value="${safe(u.email)}"></div>
+  <div class="field full"><label>Emisor SAP (10)</label><input id="cfgUserSapVendorId" maxlength="10" value="${safe(u.sapVendorId||'')}" placeholder="Ej. 1000000"><small style="display:block;margin-top:5px;color:var(--muted)">Clave SAP del empleado que alimenta exactamente la columna <strong>Emisor de factura (10)</strong> del layout oficial. El empleado no la captura durante la comprobación.</small></div>
   <div class="field"><label>Empresa</label><select id="cfgUserCompany">${COMPANIES.map(x=>`<option ${x===u.company?'selected':''}>${safe(x)}</option>`).join('')}</select></div>
   <div class="field"><label>Ciudad sede</label><select id="cfgUserBase">${DESTINATIONS.map(x=>`<option ${x===u.baseCity?'selected':''}>${safe(x)}</option>`).join('')}</select></div>
   <div class="field full"><label>Nivel jerárquico</label><select id="cfgUserPosition">${POSITIONS.map(x=>`<option value="${safe(x.name)}" ${x.name===u.position?'selected':''}>${safe(x.name)} · Grupo ${safe(x.group)}</option>`).join('')}</select></div>
@@ -2156,7 +2157,9 @@ function openUserEditor(id=''){
 }
 async function saveUserEditor(id=''){
  const name=$('cfgUserName').value.trim(),mail=norm($('cfgUserEmail').value),password=$('cfgUserPassword').value;
+ const sapVendorId=String($('cfgUserSapVendorId')?.value||'').trim();
  if(!name||!mail){toast('Completa nombre y correo');return}
+ if(sapVendorId.length>10){toast('Emisor SAP permite máximo 10 caracteres');return}
  if(users.some(u=>u.id!==id&&norm(u.email)===mail)){toast('El correo ya pertenece a otro usuario');return}
  if(!id&&password.length<6){toast('La contraseña inicial debe tener al menos 6 caracteres');return}
  const current=users.find(u=>u.id===id),lockedMaster=current?.id==='MASTER',lockedLuis=current?.id==='LUIS';
@@ -2166,7 +2169,7 @@ async function saveUserEditor(id=''){
   if(linked.length){toast(`No puedes quitar este permiso: ${linked.length} usuario(s) lo tienen como Jefe que aprueba`);return}
  }
  const data={
-  id:id||'U'+Date.now(),name,email:mail,company:$('cfgUserCompany').value,baseCity:$('cfgUserBase').value,
+  id:id||'U'+Date.now(),name,email:mail,sapVendorId,company:$('cfgUserCompany').value,baseCity:$('cfgUserBase').value,
   position:$('cfgUserPosition').value,role:lockedMaster?'master':'capturador',
   canApproveJefe,canApproveDireccion:lockedMaster||lockedLuis||Boolean(current?.canApproveDireccion),
   jefeApproverId:lockedMaster?'':($('cfgUserJefeApprover')?.value||defaultJefeApproverId(id)),
