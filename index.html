@@ -879,7 +879,7 @@ const MXN=new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'});
 const MASTER={id:'MASTER',name:'Génesis León Sarabia',email:'gls@durandco.com',password:'123456',role:'master',company:'Grupo Industrial Durandco',position:'Director Corporativo',baseCity:'CDMX',canApproveJefe:true,canApproveDireccion:true};
 const JEFE={id:'JEFE',name:'Autorizador Jefe Inmediato',email:'jefe.inmediato@empresa.com',password:'Jefe2026!',role:'capturador',company:'Grupo Industrial Durandco',position:'Gerente Ejecutivo / Gerente de Área',baseCity:'CDMX',canApproveJefe:true,canApproveDireccion:false};
 const DIRECCION={id:'DIRECCION',name:'Autorizador Dirección',email:'direccion@empresa.com',password:'Direccion2026!',role:'capturador',company:'Grupo Industrial Durandco',position:'Director Corporativo',baseCity:'CDMX',canApproveJefe:false,canApproveDireccion:true};
-const LUIS={id:'LUIS',name:'Luis Mondragón',email:'lams@durandco.com',password:'Luis2026!',role:'capturador',company:'Grupo Industrial Durandco',position:'Director Corporativo',baseCity:'CDMX',canApproveJefe:false,canApproveDireccion:true};
+const LUIS={id:'LUIS',name:'Luis Mondragón',email:'lams@durandco.com',password:'Luis2026!',role:'capturador',company:'Grupo Industrial Durandco',sapCompanyCode:'1020',position:'Director Corporativo',baseCity:'CDMX',canApproveJefe:false,canApproveDireccion:true};
 const DEFAULT_CONFIG={
  companies:['Grupo Industrial Durandco','Blue Marine','BME Oil & Gas','BME Shipping II','BME Subtec','DBS','BMBS','Lichter Seguridad','Durandco Industrial'],
  positions:[
@@ -1009,6 +1009,7 @@ if(luisAccount){
  luisAccount.email=LUIS.email;
  luisAccount.name=LUIS.name;
  luisAccount.role='capturador';
+ luisAccount.sapCompanyCode='1020';
  luisAccount.canApproveDireccion=true;
 }
 function migrateApprovalProfiles(){
@@ -2167,6 +2168,7 @@ function openUserEditor(id=''){
   <div class="field full"><label>Nombre completo</label><input id="cfgUserName" value="${safe(u.name)}"></div>
   <div class="field full"><label>Correo electrónico</label><input id="cfgUserEmail" type="email" value="${safe(u.email)}"></div>
   <div class="field full"><label>Emisor SAP (10)</label><input id="cfgUserSapVendorId" maxlength="10" value="${safe(u.sapVendorId||'')}" placeholder="Ej. 1000000"><small style="display:block;margin-top:5px;color:var(--muted)">Clave SAP del empleado que alimenta exactamente la columna <strong>Emisor de factura (10)</strong> del layout oficial. El empleado no la captura durante la comprobación.</small></div>
+  <div class="field full"><label>Sociedad SAP (4)</label><input id="cfgUserSapCompanyCode" maxlength="4" value="${safe(u.sapCompanyCode||((u.company==='Grupo Industrial Durandco')?'1020':''))}" placeholder="Ej. 1020"><small style="display:block;margin-top:5px;color:var(--muted)">Sociedad SAP que se usará automáticamente en cabecera y posiciones del layout.</small></div>
   <div class="field"><label>Empresa</label><select id="cfgUserCompany">${COMPANIES.map(x=>`<option ${x===u.company?'selected':''}>${safe(x)}</option>`).join('')}</select></div>
   <div class="field"><label>Ciudad sede</label><select id="cfgUserBase">${DESTINATIONS.map(x=>`<option ${x===u.baseCity?'selected':''}>${safe(x)}</option>`).join('')}</select></div>
   <div class="field full"><label>Nivel jerárquico</label><select id="cfgUserPosition">${POSITIONS.map(x=>`<option value="${safe(x.name)}" ${x.name===u.position?'selected':''}>${safe(x.name)} · Grupo ${safe(x.group)}</option>`).join('')}</select></div>
@@ -2186,8 +2188,10 @@ function openUserEditor(id=''){
 async function saveUserEditor(id=''){
  const name=$('cfgUserName').value.trim(),mail=norm($('cfgUserEmail').value),password=$('cfgUserPassword').value;
  const sapVendorId=String($('cfgUserSapVendorId')?.value||'').trim();
+ const sapCompanyCode=String($('cfgUserSapCompanyCode')?.value||'').trim();
  if(!name||!mail){toast('Completa nombre y correo');return}
  if(sapVendorId.length>10){toast('Emisor SAP permite máximo 10 caracteres');return}
+ if(sapCompanyCode&&!/^\d{4}$/.test(sapCompanyCode)){toast('Sociedad SAP debe tener exactamente 4 dígitos');return}
  if(users.some(u=>u.id!==id&&norm(u.email)===mail)){toast('El correo ya pertenece a otro usuario');return}
  if(!id&&password.length<6){toast('La contraseña inicial debe tener al menos 6 caracteres');return}
  const current=users.find(u=>u.id===id),lockedMaster=current?.id==='MASTER',lockedLuis=current?.id==='LUIS';
@@ -2197,7 +2201,7 @@ async function saveUserEditor(id=''){
   if(linked.length){toast(`No puedes quitar este permiso: ${linked.length} usuario(s) lo tienen como Jefe que aprueba`);return}
  }
  const data={
-  id:id||'U'+Date.now(),name,email:mail,sapVendorId,company:$('cfgUserCompany').value,baseCity:$('cfgUserBase').value,
+  id:id||'U'+Date.now(),name,email:mail,sapVendorId,sapCompanyCode,company:$('cfgUserCompany').value,baseCity:$('cfgUserBase').value,
   position:$('cfgUserPosition').value,role:lockedMaster?'master':'capturador',
   canApproveJefe,canApproveDireccion:lockedMaster||lockedLuis||Boolean(current?.canApproveDireccion),
   jefeApproverId:lockedMaster?'':($('cfgUserJefeApprover')?.value||defaultJefeApproverId(id)),
@@ -3436,11 +3440,18 @@ function saveReimbursementBankV3(){
 
 
 /* ===== COMPROBACIÓN DE GASTOS V4 · PLANTILLA SAP EXACTA ===== */
+function v4SocietyForRequest(r){
+ const requester=users.find(u=>norm(u.email)===norm(r?.requesterEmail))||{};
+ if(requester.sapCompanyCode)return String(requester.sapCompanyCode).slice(0,4);
+ if(norm(r?.requesterEmail)==='lams@durandco.com')return'1020';
+ if(requester.company==='Grupo Industrial Durandco'||r?.company==='Grupo Industrial Durandco')return'1020';
+ return String(r?.proof?.companyCode||'1020').slice(0,4);
+}
 function v4Today(){return new Date().toISOString().slice(0,10)}
-function v4NewPosition(r,index=0){return{id:'POS-'+Date.now()+'-'+Math.random().toString(36).slice(2,6),companyCode:'4000',glAccount:'',itemText:'',debitCredit:'S',amount:0,taxCode:'',assignment:'FAC'+(index+1),costCenter:String(r?.costProject||'').slice(0,10)}}
+function v4NewPosition(r,index=0){return{id:'POS-'+Date.now()+'-'+Math.random().toString(36).slice(2,6),companyCode:v4SocietyForRequest(r),glAccount:'',itemText:'',debitCredit:'S',amount:0,taxCode:'',assignment:'FAC'+(index+1),costCenter:String(r?.costProject||'').slice(0,10)}}
 function v4NewInvoice(r,index=0){
  const d=v4Today(),year=new Date().getFullYear();
- return{id:'INV-'+Date.now()+'-'+Math.random().toString(36).slice(2,6),invoiceId:String(index+1),companyCode:'4000',operation:'1',reference:'VIATICOS '+year,documentDate:d,postingDate:d,documentType:'KR',headerText:'VIATICOS '+year,currency:'MXN',grossAmount:0,dueCalculationBaseDate:d,taxDeterminationDate:d,countryReference1:'N/A',taxReportingDate:d,taxFulfillmentDate:d,positions:[v4NewPosition(r,0)],xmlName:'',xmlData:'',pdfName:'',pdfData:'',ticketName:'',ticketData:''}
+ return{id:'INV-'+Date.now()+'-'+Math.random().toString(36).slice(2,6),invoiceId:String(index+1),companyCode:v4SocietyForRequest(r),operation:'1',reference:'VIATICOS '+year,documentDate:d,postingDate:d,documentType:'KR',headerText:'VIATICOS '+year,currency:'MXN',grossAmount:0,dueCalculationBaseDate:d,taxDeterminationDate:d,countryReference1:'N/A',taxReportingDate:d,taxFulfillmentDate:d,positions:[v4NewPosition(r,0)],xmlName:'',xmlData:'',pdfName:'',pdfData:'',ticketName:'',ticketData:''}
 }
 function v4Invoices(r){
  const p=r?.proof||{};
@@ -3482,7 +3493,7 @@ function v4Attachment(inv,r,locked,type,label,accept){
 }
 function v4PositionRow(r,inv,pos,index,locked){
  return'<tr>'+
- '<td><input class="sap-v4-readonly" value="4000" readonly></td>'+
+ '<td><input class="sap-v4-readonly" value="'+safe(v4SocietyForRequest(r))+'" readonly></td>'+
  '<td><select id="v4_acc_'+pos.id+'" '+(locked?'disabled':'')+'>'+v4AccountOptions(pos.glAccount||'')+'</select></td>'+
  '<td><input id="v4_txt_'+pos.id+'" value="'+safe(pos.itemText||'')+'" maxlength="50" placeholder="Texto posición / UUID" '+(locked?'disabled':'')+'></td>'+
  '<td><input class="sap-v4-readonly" value="S" readonly></td>'+
@@ -3498,7 +3509,7 @@ function v4InvoiceCard(r,inv,index,locked){
  '<div class="sap-v4-invoice-head"><h4>Factura '+(index+1)+' · ID layout '+safe(inv.invoiceId||String(index+1))+'</h4>'+(locked?'':'<button class="icon-btn danger" onclick="v4RemoveInvoice(\''+safe(r.id)+'\',\''+safe(inv.id)+'\')">×</button>')+'</div>'+
  '<div class="sap-v4-section"><div class="sap-v4-section-title">Datos cabecera · sólo los campos llenados en el ejemplo SAP</div><div class="sap-v4-grid">'+
  '<div class="field"><label>*ID de factura</label><input id="v4_id_'+inv.id+'" value="'+safe(inv.invoiceId||String(index+1))+'" '+(locked?'disabled':'')+'></div>'+
- '<div class="field"><label>*Sociedad (4)</label><input class="sap-v4-readonly" value="4000" readonly></div>'+
+ '<div class="field"><label>*Sociedad (4)</label><input class="sap-v4-readonly" value="'+safe(v4SocietyForRequest(r))+'" readonly></div>'+
  '<div class="field"><label>*Operación</label><input class="sap-v4-readonly" value="1 · Factura" readonly></div>'+
  '<div class="field"><label>*Emisor de factura (10)</label><input class="sap-v4-readonly" value="'+safe(r.requester)+' · '+safe(sapCode)+'" readonly></div>'+
  '<div class="field"><label>Referencia (16)</label><input id="v4_ref_'+inv.id+'" maxlength="16" value="'+safe(inv.reference||'')+'" '+(locked?'disabled':'')+'></div>'+
@@ -3521,12 +3532,12 @@ function v4InvoiceCard(r,inv,index,locked){
 }
 function v4CollectInvoices(r){
  return v4Invoices(r).map((inv,index)=>({
-   ...inv,invoiceId:String($('v4_id_'+inv.id)?.value||index+1).trim(),companyCode:'4000',operation:'1',invoicingParty:currentUser?.sapVendorId||'',
+   ...inv,invoiceId:String($('v4_id_'+inv.id)?.value||index+1).trim(),companyCode:v4SocietyForRequest(r),operation:'1',invoicingParty:currentUser?.sapVendorId||'',
    reference:String($('v4_ref_'+inv.id)?.value||'').trim(),documentDate:$('v4_doc_'+inv.id)?.value||'',postingDate:$('v4_post_'+inv.id)?.value||'',documentType:'KR',
    headerText:String($('v4_head_'+inv.id)?.value||'').trim(),currency:$('v4_curr_'+inv.id)?.value||'MXN',grossAmount:Number($('v4_gross_'+inv.id)?.value||0)||0,
    dueCalculationBaseDate:$('v4_due_'+inv.id)?.value||'',taxDeterminationDate:$('v4_taxdate_'+inv.id)?.value||'',countryReference1:'N/A',
    taxReportingDate:$('v4_taxreport_'+inv.id)?.value||'',taxFulfillmentDate:$('v4_taxfulfill_'+inv.id)?.value||'',
-   positions:inv.positions.map((p,pi)=>({...p,companyCode:'4000',glAccount:String($('v4_acc_'+p.id)?.value||'').trim(),itemText:String($('v4_txt_'+p.id)?.value||'').trim(),debitCredit:'S',amount:Number($('v4_amt_'+p.id)?.value||0)||0,taxCode:$('v4_tax_'+p.id)?.value||'',assignment:String($('v4_asg_'+p.id)?.value||'').trim(),costCenter:String($('v4_ceco_'+p.id)?.value||'').trim()}))
+   positions:inv.positions.map((p,pi)=>({...p,companyCode:v4SocietyForRequest(r),glAccount:String($('v4_acc_'+p.id)?.value||'').trim(),itemText:String($('v4_txt_'+p.id)?.value||'').trim(),debitCredit:'S',amount:Number($('v4_amt_'+p.id)?.value||0)||0,taxCode:$('v4_tax_'+p.id)?.value||'',assignment:String($('v4_asg_'+p.id)?.value||'').trim(),costCenter:String($('v4_ceco_'+p.id)?.value||'').trim()}))
  }))
 }
 async function v4MergeFiles(invoices){
@@ -3566,7 +3577,7 @@ async function saveProofV4(id,submit=false){
  let invoices=v4CollectInvoices(r);try{invoices=await v4MergeFiles(invoices)}catch(e){toast(e.message);return}
  const errors=v4Validate(r,invoices,submit);if(errors.length){toast(errors[0]);return}
  const p=r.proof||{},delivered=Number(resourceAmountForRequest(r))||0,total=v4TotalGross(invoices),employeeOwes=Math.max(0,delivered-total),companyOwes=Math.max(0,total-delivered);
- p.sapInvoices=invoices;p.actualTotal=total;p.approvedTotal=delivered;p.difference=delivered-total;p.employeeOwes=employeeOwes;p.companyOwes=companyOwes;p.sapVendorId=currentUser.sapVendorId||'';p.companyCode='4000';p.currency='MXN';p.lastSavedAt=new Date().toISOString();
+ p.sapInvoices=invoices;p.actualTotal=total;p.approvedTotal=delivered;p.difference=delivered-total;p.employeeOwes=employeeOwes;p.companyOwes=companyOwes;p.sapVendorId=currentUser.sapVendorId||'';p.companyCode=v4SocietyForRequest(r);p.currency='MXN';p.lastSavedAt=new Date().toISOString();
  if(employeeOwes>0){p.returnDate=$('v4_returnDate')?.value||p.returnDate||'';p.returnAmount=Number($('v4_returnAmount')?.value||p.returnAmount||0);p.returnReference=String($('v4_returnReference')?.value||p.returnReference||'').trim();const file=$('v4_returnFile')?.files?.[0];if(file){try{const info=await readFileDataV3(file);p.returnFileName=info.name;p.returnFileData=info.data}catch(e){toast(e.message);return}}}
  // Compatibilidad para métricas existentes.
  p.expenseLines=invoices.flatMap(inv=>inv.positions.map(pos=>({id:pos.id,documentDate:inv.documentDate,postingDate:inv.postingDate,invoiceNumber:inv.reference,vendor:r.requester,concept:pos.itemText,amount:Number(pos.amount)||0,currency:inv.currency,taxCode:pos.taxCode,costCenter:pos.costCenter,account:pos.glAccount,reference:pos.assignment,text:pos.itemText})));
@@ -3598,7 +3609,7 @@ function masterFinalizeProofV4(id){const r=requests.find(x=>x.id===id);if(!r?.pr
 openProofReview=function(id){
  const r=requests.find(x=>x.id===id);if(!r)return;const p=r.proof||{},isMaster=currentUser.role==='master',invoices=p.sapInvoices||v4Invoices(r),delivered=Number(resourceAmountForRequest(r))||0,total=v4TotalGross(invoices),employeeOwes=Math.max(0,delivered-total),companyOwes=Math.max(0,total-delivered);
  if(isMaster&&p.status==='Enviada'){p.status='En revisión';r.history=r.history||[];r.history.push({stage:'Comprobación en revisión',by:currentUser.name,date:new Date().toISOString(),comment:'Génesis abrió el formulario'});persist()}
- const invoiceHtml=invoices.map((inv,i)=>'<div class="sap-v4-invoice"><div class="sap-v4-invoice-head"><h4>Factura '+(i+1)+' · ID '+safe(inv.invoiceId)+'</h4></div><div class="sap-v4-section"><div class="detail-grid"><div class="detail"><small>Referencia</small><strong>'+safe(inv.reference)+'</strong></div><div class="detail"><small>Fecha documento</small><strong>'+safe(inv.documentDate)+'</strong></div><div class="detail"><small>Fecha contabilización</small><strong>'+safe(inv.postingDate)+'</strong></div><div class="detail"><small>Importe bruto</small><strong>'+MXN.format(Number(inv.grossAmount)||0)+'</strong></div><div class="detail"><small>Texto cabecera</small><strong>'+safe(inv.headerText)+'</strong></div><div class="detail"><small>Moneda</small><strong>'+safe(inv.currency)+'</strong></div></div><h4 style="margin:14px 0 8px">Posiciones del libro mayor</h4><div class="table-wrap"><table class="data"><thead><tr><th>Sociedad</th><th>Cuenta</th><th>Texto posición</th><th>D/H</th><th>Importe</th><th>IVA</th><th>Asignación</th><th>CECO</th></tr></thead><tbody>'+inv.positions.map(pos=>'<tr><td>4000</td><td>'+safe(pos.glAccount)+'</td><td>'+safe(pos.itemText)+'</td><td>S</td><td>'+MXN.format(Number(pos.amount)||0)+'</td><td>'+safe(pos.taxCode)+'</td><td>'+safe(pos.assignment)+'</td><td>'+safe(pos.costCenter)+'</td></tr>').join('')+'</tbody></table></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">'+v4ReviewFileButton(r,inv,'xml','XML')+v4ReviewFileButton(r,inv,'pdf','PDF')+v4ReviewFileButton(r,inv,'ticket','Ticket')+'</div></div></div>').join('');
+ const invoiceHtml=invoices.map((inv,i)=>'<div class="sap-v4-invoice"><div class="sap-v4-invoice-head"><h4>Factura '+(i+1)+' · ID '+safe(inv.invoiceId)+'</h4></div><div class="sap-v4-section"><div class="detail-grid"><div class="detail"><small>Referencia</small><strong>'+safe(inv.reference)+'</strong></div><div class="detail"><small>Fecha documento</small><strong>'+safe(inv.documentDate)+'</strong></div><div class="detail"><small>Fecha contabilización</small><strong>'+safe(inv.postingDate)+'</strong></div><div class="detail"><small>Importe bruto</small><strong>'+MXN.format(Number(inv.grossAmount)||0)+'</strong></div><div class="detail"><small>Texto cabecera</small><strong>'+safe(inv.headerText)+'</strong></div><div class="detail"><small>Moneda</small><strong>'+safe(inv.currency)+'</strong></div></div><h4 style="margin:14px 0 8px">Posiciones del libro mayor</h4><div class="table-wrap"><table class="data"><thead><tr><th>Sociedad</th><th>Cuenta</th><th>Texto posición</th><th>D/H</th><th>Importe</th><th>IVA</th><th>Asignación</th><th>CECO</th></tr></thead><tbody>'+inv.positions.map(pos=>'<tr><td>'+safe(v4SocietyForRequest(r))+'</td><td>'+safe(pos.glAccount)+'</td><td>'+safe(pos.itemText)+'</td><td>S</td><td>'+MXN.format(Number(pos.amount)||0)+'</td><td>'+safe(pos.taxCode)+'</td><td>'+safe(pos.assignment)+'</td><td>'+safe(pos.costCenter)+'</td></tr>').join('')+'</tbody></table></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">'+v4ReviewFileButton(r,inv,'xml','XML')+v4ReviewFileButton(r,inv,'pdf','PDF')+v4ReviewFileButton(r,inv,'ticket','Ticket')+'</div></div></div>').join('');
  let reintegro='';if(employeeOwes>0)reintegro='<div class="notice '+(p.returnValidated?'':'error')+'"><strong>Reintegro: '+MXN.format(employeeOwes)+'</strong><br>Fecha: '+safe(p.returnDate||'—')+' · Ref: '+safe(p.returnReference||'—')+' · '+(p.returnValidated?'Depósito recibido / validado':'Pendiente de validación')+(p.returnFileData?'<br><button class="btn btn-light" style="margin-top:8px" onclick="downloadReturnFile(\''+safe(r.id)+'\')">Descargar comprobante</button>':'')+(isMaster&&!p.returnValidated?'<button class="btn btn-orange" style="margin:8px 0 0 8px" onclick="masterValidateReturnV4(\''+safe(r.id)+'\')">Depósito recibido / validado</button>':'')+'</div>';else if(companyOwes>0)reintegro='<div class="notice"><strong>Saldo a favor del empleado: '+MXN.format(companyOwes)+'</strong></div>';else reintegro='<div class="notice"><strong>Comprobación cuadrada.</strong></div>';
  $('modalContent').innerHTML='<div class="modal-head" style="margin:-2px 0 15px"><div><h3 style="margin:0">Comprobación de gastos · '+safe(r.id)+'</h3><p style="margin:5px 0 0;color:var(--muted);font-size:10px">'+safe(r.requester)+' · Emisor SAP '+safe(p.sapVendorId||'—')+' · '+safe(p.status||'')+'</p></div></div><div class="journey-banner"><h4>Formulario recibido → Layout SAP oficial → Validación → Cierre</h4><p>El layout conserva exactamente la plantilla original y sólo lo puede descargar Génesis.</p></div><div class="sap-v4-reconcile"><div><small>Monto entregado</small><strong>'+MXN.format(delivered)+'</strong></div><div><small>Total comprobado</small><strong>'+MXN.format(total)+'</strong></div><div><small>Diferencia</small><strong>'+MXN.format(delivered-total)+'</strong></div><div><small>Estatus</small><strong>'+safe(p.status||'')+'</strong></div></div><div style="margin-top:14px">'+reintegro+'</div><div style="margin-top:14px">'+invoiceHtml+'</div><div class="sap-v4-invoice"><div class="sap-v4-section"><div class="sap-v4-section-title">Historial</div>'+proofV3History(r)+'</div></div>'+(isMaster?'<div class="actions"><button class="btn btn-outline" onclick="closeModal()">Cerrar</button><button class="btn btn-light" onclick="downloadRequestSapLayout(\''+safe(r.id)+'\')">Descargar layout SAP oficial</button><button class="btn btn-orange" onclick="masterFinalizeProofV4(\''+safe(r.id)+'\')">Finalizar comprobación</button></div>':'<div class="actions"><button class="btn btn-primary" onclick="closeModal()">Cerrar</button></div>');$('modal').classList.add('open')
 };
