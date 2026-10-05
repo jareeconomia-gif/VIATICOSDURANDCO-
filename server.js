@@ -118,8 +118,7 @@ function invoiceGroupsForExactLayout(request,requesterProfile={}){
         taxCode:line.taxCode||'',
         assignment:line.assignment||line.reference||line.invoiceNumber||'',
         costCenter:line.costCenter||request.costProject||'',
-        wbsElement:line.project||request.project||'',
-        taxBase:Number(line.taxBase??line.netAmount??line.amount??0)||0
+        wbsElement:line.project||request.project||''
       }]
     }));
   }
@@ -208,9 +207,7 @@ function buildSapLayoutBuffer(request, requesterProfile={}){
         ['BX',Number(position.amount),'number'],
         ['BY',String(position.taxCode||'').slice(0,2),'string'],
         ['CA',String(position.assignment||'').slice(0,18),'string'],
-        ['CB',String(position.costCenter||'').slice(0,10),'string'],
-        ['CE',String(position.wbsElement||'').slice(0,24),'string'],
-        ['CU',Number(position.taxBase??position.amount),'number']
+        ['CB',String(position.costCenter||'').slice(0,10),'string']
       ];
       for(const [col,value,kind] of values)row=setExactTemplateCell(row,col,rowNumber,value,kind);
       // Los demás campos permanecen exactamente como están en la plantilla original: vacíos.
