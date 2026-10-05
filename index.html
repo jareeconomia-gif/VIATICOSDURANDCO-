@@ -436,6 +436,13 @@ label{font-weight:700;color:#334155;letter-spacing:.01em}
 .sap-v4-body{padding:18px}.sap-v4-invoice{background:#fff;border:1px solid #d9e1e7;border-radius:12px;margin-bottom:16px;overflow:hidden}.sap-v4-invoice-head{padding:13px 16px;background:#f7f9fb;border-bottom:1px solid #d9e1e7;display:flex;justify-content:space-between;align-items:center;gap:10px}.sap-v4-invoice-head h4{margin:0;font-size:14px;color:#0c2747}.sap-v4-section{padding:16px}.sap-v4-section-title{font-size:11px;font-weight:800;color:#0c2747;margin-bottom:11px}
 .sap-v4-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px}.sap-v4-grid .span2{grid-column:span 2}.sap-v4-grid .full{grid-column:1/-1}.sap-v4-readonly{background:#f3f6f8!important;color:#536777!important}
 .sap-v4-positions{width:100%;border-collapse:collapse;min-width:1050px}.sap-v4-positions th{background:#f6f8fa;color:#526477;font-size:9px;text-transform:uppercase;letter-spacing:.04em;text-align:left;padding:9px;border-bottom:1px solid #dbe3e9}.sap-v4-positions td{padding:7px;border-bottom:1px solid #e8edf1;vertical-align:top}.sap-v4-positions input,.sap-v4-positions select{width:100%;min-width:100px;padding:8px;border:1px solid #ccd6de;border-radius:6px;background:#fff;font-size:11px}.sap-v4-positions .v4-acc{min-width:210px}.sap-v4-positions .v4-txt{min-width:220px}.sap-v4-positions .v4-amt{min-width:120px}.sap-v4-positions .v4-tax{min-width:230px}
+.sap-v5-general{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.sap-v5-general>div{background:#fff;border:1px solid #dbe3e9;border-radius:10px;padding:12px}.sap-v5-general small{display:block;color:#6b7c8e;font-size:9px;margin-bottom:4px}.sap-v5-general strong{display:block;color:#102d4c;font-size:14px}
+.sap-v5-table{width:100%;border-collapse:collapse;min-width:1450px}.sap-v5-table th{background:#f5f8fa;color:#526477;font-size:9px;text-transform:uppercase;letter-spacing:.04em;text-align:left;padding:9px;border-bottom:1px solid #dbe3e9}.sap-v5-table td{padding:7px;border-bottom:1px solid #e7edf1;vertical-align:middle}.sap-v5-table input,.sap-v5-table select{width:100%;padding:8px;border:1px solid #cbd6df;border-radius:6px;background:#fff;font-size:11px}.sap-v5-table .money-readonly{font-weight:800;color:#102d4c;white-space:nowrap}.sap-v5-table .tax-readonly{font-weight:700;color:#0c6f4e;white-space:nowrap}
+.sap-v5-upload summary{cursor:pointer;color:#075f9b;font-weight:700;font-size:10px;white-space:nowrap}.sap-v5-upload[open] summary{margin-bottom:8px}.sap-v5-upload-box{display:grid;grid-template-columns:repeat(3,minmax(150px,1fr));gap:8px;min-width:520px}.sap-v5-upload-box .sap-v4-file{padding:8px}
+.sap-v5-tax-summary{width:100%;border-collapse:collapse}.sap-v5-tax-summary th,.sap-v5-tax-summary td{padding:8px 10px;border-bottom:1px solid #e6ecef;text-align:left;font-size:10px}.sap-v5-tax-summary th{background:#f7f9fb;color:#536777;text-transform:uppercase;font-size:9px}.sap-v5-tax-summary td.num{text-align:right;font-variant-numeric:tabular-nums}
+.sap-v5-totals{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:12px}.sap-v5-totals>div{background:#f8fafb;border:1px solid #dbe3e9;border-radius:9px;padding:11px 13px}.sap-v5-totals small{display:block;color:#687b8c;font-size:9px}.sap-v5-totals strong{display:block;margin-top:3px;font-size:17px;color:#102d4c}.sap-v5-totals .total{background:#edf9f2;border-color:#c9e7d4}.sap-v5-totals .total strong{color:#11683f}
+@media(max-width:900px){.sap-v5-general,.sap-v5-totals{grid-template-columns:repeat(2,1fr)}}@media(max-width:600px){.sap-v5-general,.sap-v5-totals{grid-template-columns:1fr}}
+
 .sap-v4-files{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.sap-v4-file{border:1px dashed #cbd5df;border-radius:8px;padding:10px;background:#fbfcfd}.sap-v4-file label{display:block;font-size:9px;font-weight:800;color:#526477;margin-bottom:5px}.sap-v4-file input{font-size:9px;width:100%}.sap-v4-saved{font-size:9px;color:#0875c1;text-decoration:underline;cursor:pointer;display:inline-block;margin-top:5px}
 .sap-v4-note{padding:11px 13px;border-radius:8px;background:#eef6fb;color:#275875;font-size:10px;line-height:1.45}.sap-v4-reconcile{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.sap-v4-reconcile>div{background:#fff;border:1px solid #dbe3e9;border-radius:10px;padding:12px}.sap-v4-reconcile small{display:block;color:#687b8c;font-size:9px}.sap-v4-reconcile strong{display:block;margin-top:4px;font-size:17px;color:#0c2747}
 .sap-v4-actions{position:sticky;bottom:0;background:rgba(255,255,255,.97);backdrop-filter:blur(8px);border-top:1px solid #d8e0e6;padding:13px 18px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
@@ -3656,6 +3663,47 @@ function v4ComprobanteTaxHtml(inv){
   '<strong>Base '+MXN.format(t.base)+'</strong> · IVA '+t.rate+'%: <strong>'+MXN.format(t.tax)+'</strong> · Total comprobante: <strong>'+MXN.format(t.gross)+'</strong>'+
  '</div>'
 }
+function v5TaxSummaryHtml(invoices){
+ const groups=new Map();
+ (invoices||[]).forEach(inv=>{
+  const pos=(inv.positions&&inv.positions[0])||{};
+  const code=String(pos.taxCode||'').trim()||'Sin IVA';
+  const t=v4TaxForAmount(pos.amount,pos.taxCode);
+  const current=groups.get(code)||{code,label:v4TaxMeta(pos.taxCode).label||'Pendiente de seleccionar',base:0,tax:0,total:0};
+  current.base+=t.base;current.tax+=t.tax;current.total+=t.gross;groups.set(code,current)
+ });
+ if(!groups.size)return'<div class="empty">Agrega al menos una posición.</div>';
+ return'<table class="sap-v5-tax-summary"><thead><tr><th>Indicador</th><th>Descripción</th><th style="text-align:right">Base</th><th style="text-align:right">IVA</th><th style="text-align:right">Total</th></tr></thead><tbody>'+
+  [...groups.values()].map(g=>'<tr><td><strong>'+safe(g.code)+'</strong></td><td>'+safe(g.label)+'</td><td class="num">'+MXN.format(g.base)+'</td><td class="num">'+MXN.format(g.tax)+'</td><td class="num"><strong>'+MXN.format(g.total)+'</strong></td></tr>').join('')+
+ '</tbody></table>'
+}
+function v5TotalsHtml(invoices){
+ const base=v4TotalBase(invoices),tax=v4TotalTax(invoices),gross=v4TotalGross(invoices);
+ return'<div class="sap-v5-totals"><div><small>Subtotal sin IVA</small><strong>'+MXN.format(base)+'</strong></div><div><small>IVA calculado</small><strong>'+MXN.format(tax)+'</strong></div><div class="total"><small>Total comprobado</small><strong>'+MXN.format(gross)+'</strong></div><div><small>Posiciones</small><strong>'+(invoices||[]).length+'</strong></div></div>'
+}
+function v5AttachmentCell(inv,r,locked){
+ return'<details class="sap-v5-upload"><summary>📎 Adjuntar</summary><div class="sap-v5-upload-box">'+
+   v4Attachment(inv,r,locked,'xml','XML','.xml')+
+   v4Attachment(inv,r,locked,'pdf','PDF','.pdf')+
+   v4Attachment(inv,r,locked,'ticket','Ticket / foto','.jpg,.jpeg,.png,.pdf')+
+ '</div></details>'
+}
+function v5ComprobanteRow(r,inv,index,locked){
+ const pos=(inv.positions&&inv.positions[0])||v4NewPosition(r,0),t=v4TaxForAmount(pos.amount,pos.taxCode);
+ return'<tr data-v5-row="'+safe(inv.id)+'" data-v5-index="'+index+'">'+
+  '<td><strong>'+(index+1)+'</strong></td>'+
+  '<td><input class="v5-doc" type="date" value="'+safe(inv.documentDate||v4Today())+'" '+(locked?'disabled':'')+'></td>'+
+  '<td><input class="v5-ref" maxlength="16" value="'+safe(inv.reference||'')+'" placeholder="Factura / ticket" '+(locked?'disabled':'')+'></td>'+
+  '<td><select class="v5-acc" '+(locked?'disabled':'')+'>'+v4AccountOptions(pos.glAccount||'')+'</select></td>'+
+  '<td><input class="v5-txt" maxlength="50" value="'+safe(pos.itemText||'')+'" placeholder="Hotel, Uber, comida..." '+(locked?'disabled':'')+'></td>'+
+  '<td><input class="v5-base" type="number" min="0" step=".01" value="'+Number(pos.amount||0).toFixed(2)+'" placeholder="0.00" oninput="v4RefreshSummary(\''+safe(r.id)+'\')" '+(locked?'disabled':'')+'></td>'+
+  '<td><select class="v5-tax" onchange="v4RefreshSummary(\''+safe(r.id)+'\')" '+(locked?'disabled':'')+'>'+v4TaxOptions(pos.taxCode||'')+'</select></td>'+
+  '<td class="tax-readonly" id="v5_tax_'+index+'">'+MXN.format(t.tax)+'</td>'+
+  '<td class="money-readonly" id="v5_total_'+index+'">'+MXN.format(t.gross)+'</td>'+
+  '<td>'+v5AttachmentCell(inv,r,locked)+'</td>'+
+  '<td>'+(locked?'':'<button class="icon-btn danger" title="Eliminar posición" onclick="v4RemoveInvoice(\''+safe(r.id)+'\',\''+safe(inv.id)+'\')">×</button>')+'</td>'+
+ '</tr>'
+}
 function v4PositionRow(r,inv,pos,index,locked){
  return'<tr data-v4-pos-row="'+index+'">'+
  '<td><select class="v4-acc" '+(locked?'disabled':'')+'>'+v4AccountOptions(pos.glAccount||'')+'</select></td>'+
@@ -3688,27 +3736,16 @@ function v4InvoiceCard(r,inv,index,locked){
 }
 function v4CollectInvoices(r){
  const base=v4Invoices(r),year=new Date().getFullYear();
- const cards=[...document.querySelectorAll('#invoiceCaptureContent .sap-v4-invoice[data-v4-invoice-id]')];
- if(!cards.length)return base;
- return cards.map((card,index)=>{
+ const rows=[...document.querySelectorAll('#invoiceCaptureContent tr[data-v5-row]')];
+ if(!rows.length)return base;
+ return rows.map((row,index)=>{
   const inv=base[index]||v4NewInvoice(r,index);
   const source=(inv.positions&&inv.positions[0])||v4NewPosition(r,0);
-  const amount=Number(card.querySelector('.v4-amt')?.value||0)||0;
-  const taxCode=String(card.querySelector('.v4-tax')?.value||'').trim();
-  const posting=v4Today();
-  const reference=String(card.querySelector('.v4-ref')?.value||'').trim()||('COMPROBANTE '+(index+1));
-  const pos={
-   ...source,
-   companyCode:v4SocietyForRequest(r),
-   glAccount:String(card.querySelector('.v4-acc')?.value||'').trim(),
-   itemText:String(card.querySelector('.v4-txt')?.value||'').trim(),
-   debitCredit:'S',
-   amount,
-   taxCode,
-   assignment:'FACTURA',
-   costCenter:String(r.costProject||source.costCenter||'').slice(0,10)
-  };
+  const amount=Number(row.querySelector('.v5-base')?.value||0)||0;
+  const taxCode=String(row.querySelector('.v5-tax')?.value||'').trim();
   const t=v4TaxForAmount(amount,taxCode);
+  const posting=v4Today();
+  const reference=String(row.querySelector('.v5-ref')?.value||'').trim()||('COMPROBANTE '+(index+1));
   return{
    ...inv,
    id:inv.id||('INV-'+Date.now()+'-'+index),
@@ -3717,11 +3754,11 @@ function v4CollectInvoices(r){
    operation:'1',
    invoicingParty:currentUser?.sapVendorId||'',
    reference,
-   documentDate:card.querySelector('.v4-doc')?.value||'',
+   documentDate:row.querySelector('.v5-doc')?.value||posting,
    postingDate:posting,
    documentType:'KR',
    headerText:'VIATICOS '+year,
-   currency:card.querySelector('.v4-curr')?.value||'MXN',
+   currency:'MXN',
    grossAmount:t.gross,
    baseAmount:t.base,
    taxAmount:t.tax,
@@ -3730,7 +3767,17 @@ function v4CollectInvoices(r){
    countryReference1:'N/A',
    taxReportingDate:posting,
    taxFulfillmentDate:posting,
-   positions:[pos]
+   positions:[{
+    ...source,
+    companyCode:v4SocietyForRequest(r),
+    glAccount:String(row.querySelector('.v5-acc')?.value||'').trim(),
+    itemText:String(row.querySelector('.v5-txt')?.value||'').trim(),
+    debitCredit:'S',
+    amount:t.base,
+    taxCode,
+    assignment:'FACTURA',
+    costCenter:String(r.costProject||source.costCenter||'').slice(0,10)
+   }]
   }
  })
 }
@@ -3742,12 +3789,12 @@ function v4Validate(r,invoices,submit=false){
  const e=[];if(!currentUser?.sapVendorId)e.push('Administración debe configurar primero tu Emisor SAP (10).');
  invoices.forEach((inv,i)=>{
   const p=(inv.positions&&inv.positions[0])||{};
-  if(!inv.documentDate)e.push('Comprobante '+(i+1)+': falta la fecha.');
-  if(!p.glAccount)e.push('Comprobante '+(i+1)+': falta la cuenta SAP.');
-  if(!p.itemText)e.push('Comprobante '+(i+1)+': falta el concepto.');
-  if(!(Number(p.amount)>0))e.push('Comprobante '+(i+1)+': el importe debe ser mayor a cero.');
-  if(!p.taxCode)e.push('Comprobante '+(i+1)+': selecciona el IVA.');
-  if(submit&&!inv.xmlData&&!inv.pdfData&&!inv.ticketData)e.push('Comprobante '+(i+1)+': adjunta XML, PDF o ticket/fotografía.');
+  if(!inv.documentDate)e.push('Posición '+(i+1)+': falta la fecha.');
+  if(!p.glAccount)e.push('Posición '+(i+1)+': falta la cuenta SAP.');
+  if(!p.itemText)e.push('Posición '+(i+1)+': falta el concepto.');
+  if(!(Number(p.amount)>0))e.push('Posición '+(i+1)+': el importe debe ser mayor a cero.');
+  if(!p.taxCode)e.push('Posición '+(i+1)+': selecciona el IVA.');
+  if(submit&&!inv.xmlData&&!inv.pdfData&&!inv.ticketData)e.push('Posición '+(i+1)+': adjunta XML, PDF o ticket/fotografía.');
  });
  const b=v4GlobalBalanceData(r,invoices);
  if(submit&&b.employeeOwes>0){
@@ -3764,7 +3811,13 @@ function v4RefreshSummary(id){
  const r=requests.find(x=>x.id===id);if(!r)return;
  const inv=v4CollectInvoices(r),total=v4TotalGross(inv);
  if($('v4_total'))$('v4_total').textContent=MXN.format(total);
- inv.forEach((x,i)=>{const el=$('v4_taxline_'+i);if(el)el.innerHTML=v4ComprobanteTaxHtml(x)});
+ inv.forEach((x,i)=>{
+  const t=v4ComprobanteTotals(x),tax=$('v5_tax_'+i),gross=$('v5_total_'+i);
+  if(tax)tax.textContent=MXN.format(t.tax);
+  if(gross)gross.textContent=MXN.format(t.gross)
+ });
+ if($('v5_taxSummary'))$('v5_taxSummary').innerHTML=v5TaxSummaryHtml(inv);
+ if($('v5_totals'))$('v5_totals').innerHTML=v5TotalsHtml(inv);
  if($('v4_globalBalance'))$('v4_globalBalance').innerHTML=v4GlobalBalanceHtml(r,inv);
  if($('v4_reconcile'))$('v4_reconcile').innerHTML=v4ReconcileHtml(r,inv)
 }
@@ -3776,8 +3829,19 @@ function v4ReconcileHtml(r,invoices){
  else extra='<div class="sap-v4-note" style="margin-top:12px;background:#eef8f0;color:#286237"><strong>Comprobación cuadrada.</strong> No hay saldo pendiente.</div>';
  return'<div class="sap-v4-reconcile"><div><small>Monto entregado</small><strong>'+MXN.format(b.delivered)+'</strong></div><div><small>Subtotal comprobantes</small><strong>'+MXN.format(b.base)+'</strong></div><div><small>IVA calculado</small><strong>'+MXN.format(b.tax)+'</strong></div><div><small>Total comprobado</small><strong>'+MXN.format(b.gross)+'</strong></div><div><small>Diferencia</small><strong>'+MXN.format(b.difference)+'</strong></div><div><small>Resultado</small><strong>'+safe(b.employeeOwes>0?'Reintegro':b.companyOwes>0?'Reembolso':'Cuadrada')+'</strong></div></div>'+extra
 }
-function v4AddInvoice(id){const r=requests.find(x=>x.id===id);if(!r)return;const p=r.proof||{};p.sapInvoices=v4CollectInvoices(r);p.sapInvoices.push(v4NewInvoice(r,p.sapInvoices.length));r.proof=p;renderInvoiceCapture()}
-function v4RemoveInvoice(id,invId){const r=requests.find(x=>x.id===id);if(!r)return;if(!confirm('¿Eliminar este comprobante de la comprobación?'))return;const p=r.proof||{};p.sapInvoices=v4CollectInvoices(r).filter(x=>x.id!==invId);if(!p.sapInvoices.length)p.sapInvoices=[v4NewInvoice(r,0)];r.proof=p;renderInvoiceCapture()}
+async function v4AddInvoice(id){
+ const r=requests.find(x=>x.id===id);if(!r)return;
+ const p=r.proof||{};let current=v4CollectInvoices(r);
+ try{current=await v4MergeFiles(current)}catch(e){toast(e.message);return}
+ p.sapInvoices=current;p.sapInvoices.push(v4NewInvoice(r,p.sapInvoices.length));r.proof=p;renderInvoiceCapture()
+}
+async function v4RemoveInvoice(id,invId){
+ const r=requests.find(x=>x.id===id);if(!r)return;
+ if(!confirm('¿Eliminar esta posición / comprobante?'))return;
+ const p=r.proof||{};let current=v4CollectInvoices(r);
+ try{current=await v4MergeFiles(current)}catch(e){toast(e.message);return}
+ p.sapInvoices=current.filter(x=>x.id!==invId);if(!p.sapInvoices.length)p.sapInvoices=[v4NewInvoice(r,0)];r.proof=p;renderInvoiceCapture()
+}
 function v4AddPosition(id,invId){const r=requests.find(x=>x.id===id);if(!r)return;const p=r.proof||{};p.sapInvoices=v4CollectInvoices(r);const inv=p.sapInvoices.find(x=>x.id===invId);if(inv)inv.positions.push(v4NewPosition(r,inv.positions.length));r.proof=p;renderInvoiceCapture()}
 function v4RemovePosition(id,invId,posId){const r=requests.find(x=>x.id===id);if(!r)return;const p=r.proof||{};p.sapInvoices=v4CollectInvoices(r);const inv=p.sapInvoices.find(x=>x.id===invId);if(inv){inv.positions=inv.positions.filter(x=>x.id!==posId);if(!inv.positions.length)inv.positions=[v4NewPosition(r,0)]}r.proof=p;renderInvoiceCapture()}
 async function saveProofV4(id,submit=false){
@@ -3800,16 +3864,28 @@ async function saveProofV4(id,submit=false){
 renderInvoiceCapture=function(){
  const box=$('invoiceCaptureContent');if(!box)return;
  if(currentUser?.role==='master'){box.innerHTML='<div class="invoice-empty"><h4>Captura del empleado</h4><p>Génesis revisa las comprobaciones recibidas desde la bandeja Comprobación de gastos.</p><button class="btn btn-orange" onclick="showView(\'proofs\')">Ir a comprobaciones</button></div>';return}
- const r=activeInvoiceRequestId?requests.find(x=>x.id===activeInvoiceRequestId):null;if(!r){box.innerHTML='<div class="invoice-empty"><h4>Selecciona una solicitud aprobada</h4><p>Regresa a Comprobación de gastos y elige “Realizar comprobación”.</p><button class="btn btn-orange" onclick="showView(\'proofs\')">Ir a comprobaciones</button></div>';return}
+ const r=activeInvoiceRequestId?requests.find(x=>x.id===activeInvoiceRequestId):null;
+ if(!r){box.innerHTML='<div class="invoice-empty"><h4>Selecciona una solicitud aprobada</h4><p>Regresa a Comprobación de gastos y elige “Realizar comprobación”.</p><button class="btn btn-orange" onclick="showView(\'proofs\')">Ir a comprobaciones</button></div>';return}
  const p=r.proof||{},locked=['Enviada','En revisión','Reintegro validado','Finalizada'].includes(p.status),invoices=v4Invoices(r),delivered=Number(resourceAmountForRequest(r))||0,total=v4TotalGross(invoices);
- box.innerHTML='<div class="sap-v4-wrap"><div class="sap-v4-top"><div style="display:flex;justify-content:space-between;gap:14px;align-items:flex-start;flex-wrap:wrap"><div><h3>Comprobación de gastos</h3><p>Registra tus facturas y comprobantes. El portal prepara automáticamente la información necesaria para SAP.</p></div><button class="btn btn-light" onclick="showView(\'proofs\')">← Volver</button></div><div class="sap-v4-summary"><div><small>Solicitud</small><strong>'+safe(r.id)+'</strong></div><div><small>Emisor de factura</small><strong>'+safe(r.requester)+'</strong></div><div><small>Monto entregado</small><strong>'+MXN.format(delivered)+'</strong></div><div><small>Total comprobado</small><strong id="v4_total">'+MXN.format(total)+'</strong></div></div></div>'+
- '<div class="sap-v4-body"><div class="sap-v4-note"><strong>Una fila = un comprobante.</strong> Hotel, Uber, comida, estacionamiento, etc. Cada comprobante genera una posición del libro mayor; el portal arma el layout SAP automáticamente.</div><div class="sap-v4-guide"><div><b>1</b><span>Agrega cada comprobante</span></div><div><b>2</b><span>Selecciona cuenta e IVA</span></div><div><b>3</b><span>Adjunta XML, PDF o ticket</span></div><div><b>4</b><span>Revisa el total y envía</span></div></div>'+
- (currentUser.sapVendorId?'':'<div class="notice error" style="margin-top:12px"><strong>Falta Emisor SAP (10).</strong> Génesis debe configurarlo en Configuración → Usuarios antes de poder enviar la comprobación.</div>')+
- '<div class="sap-v4-invoice" style="margin-top:16px"><div class="sap-v4-section"><div class="sap-v4-friendly-title"><b>Σ</b><strong>Cuadre SAP de la comprobación</strong></div><p class="sap-v4-help">El total se calcula como subtotal de posiciones + IVA según el indicador seleccionado, igual que en SAP.</p><div id="v4_globalBalance">'+v4GlobalBalanceHtml(r,invoices)+'</div></div></div>'+'<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin:16px 0 10px"><div><strong style="color:var(--navy);font-size:14px">Comprobantes de gasto</strong><div style="font-size:10px;color:var(--muted)">Cada tarjeta representa una factura, ticket o gasto y equivale a una posición del libro mayor.</div></div>'+(locked?'':'<button class="btn btn-orange" onclick="v4AddInvoice(\''+safe(r.id)+'\')">＋ Agregar comprobante</button>')+'</div>'+
- invoices.map((inv,i)=>v4InvoiceCard(r,inv,i,locked)).join('')+
- '<div class="sap-v4-invoice"><div class="sap-v4-section"><div class="sap-v4-section-title">Conciliación de la comprobación</div><div id="v4_reconcile">'+v4ReconcileHtml(r,invoices)+'</div></div></div>'+
- '<div class="sap-v4-invoice"><div class="sap-v4-section"><div class="sap-v4-section-title">Historial</div>'+proofV3History(r)+'</div></div></div>'+
- (locked?'<div class="sap-v4-actions"><button class="btn btn-light" onclick="showView(\'proofs\')">Volver</button><div class="sap-v4-note">La comprobación ya fue enviada. Génesis tiene el formulario y puede descargar el layout SAP oficial.</div></div>':'<div class="sap-v4-actions"><button class="btn btn-light" onclick="showView(\'proofs\')">Cancelar</button><div style="display:flex;gap:8px"><button class="btn btn-light" onclick="saveProofV4(\''+safe(r.id)+'\',false)">Guardar borrador</button><button class="btn btn-orange" onclick="saveProofV4(\''+safe(r.id)+'\',true)">Enviar comprobación a Génesis</button></div></div>')+
+ box.innerHTML='<div class="sap-v4-wrap">'+
+ '<div class="sap-v4-top"><div style="display:flex;justify-content:space-between;gap:14px;align-items:flex-start;flex-wrap:wrap"><div><div style="font-size:10px;font-weight:800;color:#5f7488;margin-bottom:4px">COMPROBACIÓN DE GASTOS</div><h3>Nueva factura de proveedor</h3><p>Registra todos tus comprobantes en una sola factura de proveedor. Cada renglón equivale a una posición del libro mayor.</p></div><button class="btn btn-light" onclick="showView(\'proofs\')">← Regresar</button></div>'+
+ '<div class="sap-v5-general" style="margin-top:14px"><div><small>Saldo / recurso entregado</small><strong>'+MXN.format(delivered)+'</strong></div><div><small>Proveedor</small><strong>'+safe(currentUser.sapVendorId||'—')+' · '+safe(r.requester)+'</strong></div><div><small>Sociedad</small><strong>'+safe(v4SocietyForRequest(r))+' · DURANDCO BUSINESS SUPPORT</strong></div><div><small>Total comprobado</small><strong id="v4_total">'+MXN.format(total)+'</strong></div></div></div>'+
+ '<div class="sap-v4-body">'+
+ (currentUser.sapVendorId?'':'<div class="notice error"><strong>Falta Emisor SAP.</strong> Génesis debe configurarlo en Administración → Usuarios antes de enviar.</div>')+
+ '<div class="sap-v4-invoice">'+
+  '<div class="sap-v4-invoice-head"><div><h4>Posiciones / comprobantes</h4><div style="font-size:9px;color:var(--muted);margin-top:2px">Hotel, Uber, comida, estacionamiento, etc. = un renglón cada uno.</div></div>'+(locked?'':'<button class="btn btn-orange" onclick="v4AddInvoice(\''+safe(r.id)+'\')">＋ Añadir posición</button>')+'</div>'+
+  '<div class="sap-v4-section"><div class="sap-v4-note"><strong>Calculadora de IVA:</strong> captura el importe <u>antes de IVA</u> y selecciona el indicador. El portal calcula automáticamente el impuesto y el total del comprobante. Ejemplo: $862.07 + IVA 16% = $1,000.00.</div>'+
+   '<div class="table-wrap" style="margin-top:12px"><table class="sap-v5-table"><thead><tr><th>#</th><th>Fecha</th><th>Folio / referencia</th><th>Cuenta SAP</th><th>Descripción</th><th>Importe sin IVA</th><th>IVA</th><th>IVA calculado</th><th>Total</th><th>Anexo</th><th></th></tr></thead><tbody>'+
+   invoices.map((inv,i)=>v5ComprobanteRow(r,inv,i,locked)).join('')+
+   '</tbody></table></div>'+
+   '<div id="v5_totals">'+v5TotalsHtml(invoices)+'</div>'+
+  '</div>'+
+ '</div>'+
+ '<div class="sap-v4-invoice"><div class="sap-v4-section"><div class="sap-v4-friendly-title"><b>%</b><strong>Impuestos</strong></div><p class="sap-v4-help">Resumen automático por indicador de IVA.</p><div id="v5_taxSummary">'+v5TaxSummaryHtml(invoices)+'</div></div></div>'+
+ '<div class="sap-v4-invoice"><div class="sap-v4-section"><div class="sap-v4-friendly-title"><b>Σ</b><strong>Cuadre de la comprobación</strong></div><div id="v4_globalBalance">'+v4GlobalBalanceHtml(r,invoices)+'</div><div id="v4_reconcile" style="margin-top:12px">'+v4ReconcileHtml(r,invoices)+'</div></div></div>'+
+ '<div class="sap-v4-invoice"><div class="sap-v4-section"><div class="sap-v4-section-title">Historial</div>'+proofV3History(r)+'</div></div>'+
+ '</div>'+
+ (locked?'<div class="sap-v4-actions"><button class="btn btn-light" onclick="showView(\'proofs\')">Volver</button><div class="sap-v4-note">La comprobación ya fue enviada. Génesis puede revisar y descargar el layout SAP.</div></div>':'<div class="sap-v4-actions"><button class="btn btn-light" onclick="showView(\'proofs\')">Cancelar</button><div style="display:flex;gap:8px"><button class="btn btn-light" onclick="saveProofV4(\''+safe(r.id)+'\',false)">Guardar borrador</button><button class="btn btn-orange" onclick="saveProofV4(\''+safe(r.id)+'\',true)">Enviar comprobación a Génesis</button></div></div>')+
  '</div>'
 };
 openProofEditor=function(id){
