@@ -474,7 +474,7 @@ label{font-weight:700;color:#334155;letter-spacing:.01em}
     <div class="auth-card">
       <h2>Iniciar sesión</h2>
       <p>Accede a tus viajes, anticipos, comprobaciones y aprobaciones.</p>
-      <form id="loginForm" class="auth-form active" onsubmit="loginPortal(event);return false;">
+      <form id="loginForm" class="auth-form active">
         <div class="error-box" id="loginError"></div>
         <div class="field"><label>Correo electrónico</label><input id="loginEmail" type="email" required autocomplete="username" placeholder="correo@durandco.com"></div>
         <div class="field"><label>Contraseña</label><input id="loginPassword" type="password" required autocomplete="current-password"></div>
@@ -483,7 +483,7 @@ label{font-weight:700;color:#334155;letter-spacing:.01em}
           Las cuentas son creadas y administradas por Genesis Leon desde Configuración → Usuarios.
         </div>
       </form>
-      <form id="initialPasswordForm" class="auth-form" style="display:none" onsubmit="completeInitialPassword(event);return false;">
+      <form id="initialPasswordForm" class="auth-form" style="display:none">
         <h2>Crea tu contraseña</h2>
         <p>Este es tu primer acceso. Antes de continuar debes reemplazar la contraseña temporal por una contraseña personal.</p>
         <div class="error-box" id="initialPasswordError"></div>
@@ -783,13 +783,20 @@ function setSyncStatus(message='Conectado',state='ok'){
  const el=$('syncStatus');if(!el)return;el.textContent=message;el.dataset.state=state
 }
 async function apiRequest(path,options={}){
- const config={credentials:'same-origin',...options,headers:{...(options.headers||{})}};
+ const controller=new AbortController();
+ const timeout=setTimeout(()=>controller.abort(),20000);
+ const config={credentials:'same-origin',...options,signal:options.signal||controller.signal,headers:{...(options.headers||{})}};
  if(config.body&&typeof config.body!=='string'){config.headers['Content-Type']='application/json';config.body=JSON.stringify(config.body)}
- const response=await fetch(API_BASE+path,config);
- const contentType=response.headers.get('content-type')||'';
- const data=contentType.includes('application/json')?await response.json():null;
- if(!response.ok){const error=new Error(data?.error||`Error ${response.status}`);error.status=response.status;throw error}
- return data
+ try{
+  const response=await fetch(API_BASE+path,config);
+  const contentType=response.headers.get('content-type')||'';
+  const data=contentType.includes('application/json')?await response.json():null;
+  if(!response.ok){const error=new Error(data?.error||`Error ${response.status}`);error.status=response.status;throw error}
+  return data
+ }catch(error){
+  if(error?.name==='AbortError')throw new Error('El servidor tardó demasiado en responder. Intenta nuevamente.');
+  throw error
+ }finally{clearTimeout(timeout)}
 }
 function syncClone(value){try{return structuredClone(value)}catch{return JSON.parse(JSON.stringify(value))}}
 function handleApiFailure(error){
@@ -1246,7 +1253,7 @@ function showLoginForm(){
  showError('initialPasswordError','');
 }
 async function completeInitialPassword(e){
- if(e?.preventDefault)e.preventDefault();
+ e?.preventDefault();
  const next=String($('initialNewPassword')?.value||'');
  const confirmation=String($('initialNewPasswordConfirm')?.value||'');
  if(next!==confirmation){showError('initialPasswordError','Las contraseñas no coinciden.');return false}
@@ -1254,53 +1261,68 @@ async function completeInitialPassword(e){
  const button=$('initialPasswordSubmit');if(button){button.disabled=true;button.textContent='Guardando…'}
  try{
    const data=await apiRequest('/complete-initial-password',{method:'POST',body:{newPassword:next}});
-   showLoginForm();
-   await startSession(data.user);
-   toast('Contraseña creada correctamente');
+   const ok=await startSession(data.user);
+   if(ok)toast('Contraseña creada correctamente');
  }catch(error){
    showError('initialPasswordError',error.message||'No fue posible guardar la contraseña.');
  }finally{if(button){button.disabled=false;button.textContent='Guardar contraseña y entrar'}}
  return false
 }
 async function loginPortal(e){
- if(e?.preventDefault)e.preventDefault();
+ e?.preventDefault();
  if(loginPortalBusy)return false;
  showError('loginError','');
  const email=String($('loginEmail')?.value||'').trim();
  const password=String($('loginPassword')?.value||'');
  if(!email||!password){showError('loginError','Escribe tu correo y contraseña.');return false}
- const button=$('loginSubmitButton')||$('loginForm')?.querySelector('button[type=submit]');
- loginPortalBusy=true;if(button){button.disabled=true;button.textContent='Ingresando…'}
+ const button=$('loginSubmitButton');
+ loginPortalBusy=true;
+ if(button){button.disabled=true;button.textContent='Ingresando…'}
  try{
    const data=await apiRequest('/login',{method:'POST',body:{email,password}});
    if(data.user?.mustChangePassword){showInitialPasswordSetup();return false}
-   await startSession(data.user);
+   const ok=await startSession(data.user);
+   if(!ok)showError('loginError','Tu usuario es correcto, pero no se pudo cargar el portal. Presiona Continuar nuevamente.');
  }catch(error){
    showError('loginError',error.message||'No fue posible iniciar sesión.');
  }finally{
-   loginPortalBusy=false;if(button){button.disabled=false;button.textContent='Continuar'}
+   loginPortalBusy=false;
+   if(button){button.disabled=false;button.textContent='Continuar'}
  }
  return false
 }
 $('loginForm')?.addEventListener('submit',loginPortal);
 $('initialPasswordForm')?.addEventListener('submit',completeInitialPassword);
+
+async function loadRemoteStateWithRetry(){
+ let lastError=null;
+ for(let attempt=1;attempt<=3;attempt++){
+  try{return await loadRemoteState()}
+  catch(error){lastError=error;if(attempt<3)await new Promise(resolve=>setTimeout(resolve,450*attempt))}
+ }
+ throw lastError||new Error('No fue posible cargar la información del portal.')
+}
 async function startSession(u){
  currentUser={...u};
  try{
-  await loadRemoteState();
+  await loadRemoteStateWithRetry();
   $('authScreen').style.display='none';
   $('appShell').style.display='grid';
   applyPermissions();
   startRemotePolling();
  }catch(error){
+  console.error('No se pudo completar el inicio de sesión',error);
   currentUser=null;
-  handleApiFailure(error);
-  $('authScreen').style.display='grid';
   $('appShell').style.display='none';
-  return;
+  $('authScreen').style.display='grid';
+  showLoginForm();
+  showError('loginError',error?.message||'No se pudo cargar el portal. Intenta nuevamente.');
+  setSyncStatus('Sin conexión','error');
+  return false
  }
  // Una falla en la migración de datos antiguos nunca debe cerrar una sesión válida.
- await migrateLegacyData();
+ try{await migrateLegacyData()}catch(error){console.warn('Migración pendiente',error)}
+ return true
 }
 async function logout(){
  try{await apiRequest('/logout',{method:'POST'})}catch{}
