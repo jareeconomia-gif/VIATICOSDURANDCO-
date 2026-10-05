@@ -2229,7 +2229,7 @@ function openUserEditor(id=''){
  </div>`}
  <div class="modal-section">Acceso</div>
  <div class="notice" style="margin-bottom:10px"><strong>${editing?'Acceso administrado':'Contraseña temporal automática'}</strong><br>${editing?'La contraseña actual se conserva. Puedes restablecer el acceso desde este usuario.':'El sistema asignará la contraseña temporal estándar. En el primer acceso el usuario deberá crear su propia contraseña.'}</div>
- <div class="actions"><button class="btn btn-outline" onclick="closeModal()">Cancelar</button>${editing&&!lockedMaster?`<button class="btn btn-danger" onclick="deleteUserAccount('${safe(u.id)}')">Eliminar</button>`:''}<button class="btn btn-orange" onclick="saveUserEditor('${safe(u.id)}')">Guardar usuario</button></div>`;
+ <div class="actions"><button class="btn btn-outline" onclick="closeModal()">Cancelar</button>${editing&&!lockedMaster?`<button class="btn btn-light" onclick="resetUserAccess('${safe(u.id)}','${safe(u.name)}')">Restablecer acceso</button><button class="btn btn-danger" onclick="deleteUserAccount('${safe(u.id)}')">Eliminar</button>`:''}<button class="btn btn-orange" onclick="saveUserEditor('${safe(u.id)}')">Guardar usuario</button></div>`;
  $('modal').classList.add('open');
 }
 async function saveUserEditor(id=''){
@@ -2267,6 +2267,15 @@ async function saveUserEditor(id=''){
   toast(error?.message||'No fue posible guardar el usuario');
   if(saveButton){saveButton.disabled=false;saveButton.textContent='Guardar usuario'}
  }
+}
+async function resetUserAccess(id,name){
+ if(!confirm('¿Restablecer el acceso de '+name+'? En su siguiente ingreso tendrá que crear una nueva contraseña.'))return;
+ try{
+  const result=await apiRequest('/user/admin/reset-password',{method:'POST',body:{id}});
+  const pos=users.findIndex(x=>x.id===id);if(pos>=0)users[pos]=result.user;
+  localStorage.setItem('durandco_v2_users',JSON.stringify(users));
+  closeModal();renderUsers();toast('Acceso restablecido correctamente');
+ }catch(error){toast(error?.message||'No fue posible restablecer el acceso')}
 }
 function toggleApprovalProfileField(){}
 function deleteUserAccount(id){
