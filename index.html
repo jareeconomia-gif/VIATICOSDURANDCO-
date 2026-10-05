@@ -1259,6 +1259,7 @@ refreshCatalogSelects();
 
 function showError(id,msg){$(id).textContent=msg;$(id).classList.toggle('show',Boolean(msg))}
 let loginPortalBusy=false;
+let authFlowInProgress=false;
 function showInitialPasswordSetup(){
  $('loginForm').style.display='none';
  $('initialPasswordForm').style.display='block';
@@ -1274,6 +1275,7 @@ function showLoginForm(){
 }
 async function completeInitialPassword(e){
  e?.preventDefault();
+ authFlowInProgress=true;
  const next=String($('initialNewPassword')?.value||'');
  const confirmation=String($('initialNewPasswordConfirm')?.value||'');
  if(next!==confirmation){showError('initialPasswordError','Las contraseñas no coinciden.');return false}
@@ -1285,19 +1287,23 @@ async function completeInitialPassword(e){
    if(ok)toast('Contraseña creada correctamente');
  }catch(error){
    showError('initialPasswordError',error.message||'No fue posible guardar la contraseña.');
- }finally{if(button){button.disabled=false;button.textContent='Guardar contraseña y entrar'}}
+ }finally{
+   authFlowInProgress=false;
+   if(button){button.disabled=false;button.textContent='Guardar contraseña y entrar'}
+ }
  return false
 }
 async function loginPortal(e){
  e?.preventDefault();
  if(loginPortalBusy)return false;
+ authFlowInProgress=true;
  showError('loginError','');
  const email=String($('loginEmail')?.value||'').trim();
  const password=String($('loginPassword')?.value||'');
  if(!email||!password){showError('loginError','Escribe tu correo y contraseña.');return false}
  const button=$('loginSubmitButton');
  loginPortalBusy=true;
- if(button){button.disabled=true;button.textContent='Ingresando…'}
+ if(button){button.disabled=true;button.textContent='Ingresando…';button.setAttribute('aria-busy','true')}
  try{
    const data=await apiRequest('/login',{method:'POST',body:{email,password}});
    if(data.user?.mustChangePassword){showInitialPasswordSetup();return false}
@@ -1307,7 +1313,8 @@ async function loginPortal(e){
    showError('loginError',error.message||'No fue posible iniciar sesión.');
  }finally{
    loginPortalBusy=false;
-   if(button){button.disabled=false;button.textContent='Continuar'}
+   authFlowInProgress=false;
+   if(button){button.disabled=false;button.textContent='Continuar';button.removeAttribute('aria-busy')}
  }
  return false
 }
@@ -4048,9 +4055,24 @@ renderProofs=function(){
 (async function initPortal(){
  try{
   const data=await apiRequest('/me');
-  if(data.user?.mustChangePassword){$('authScreen').style.display='grid';$('appShell').style.display='none';showInitialPasswordSetup()}
-  else await startSession(data.user)
- }catch{$('authScreen').style.display='grid';$('appShell').style.display='none';showLoginForm();$('loginEmail').focus()}
+  // Si el usuario ya empezó a iniciar sesión manualmente, esta comprobación
+  // inicial no debe volver a pintar otra pantalla de acceso.
+  if(authFlowInProgress||loginPortalBusy||currentUser)return;
+  if(data.user?.mustChangePassword){
+    $('authScreen').style.display='grid';
+    $('appShell').style.display='none';
+    showInitialPasswordSetup();
+  }else{
+    authFlowInProgress=true;
+    try{await startSession(data.user)}finally{authFlowInProgress=false}
+  }
+ }catch{
+  if(authFlowInProgress||loginPortalBusy||currentUser)return;
+  $('authScreen').style.display='grid';
+  $('appShell').style.display='none';
+  showLoginForm();
+  $('loginEmail')?.focus();
+ }
 })();
 </script>
 </body>
