@@ -74,7 +74,7 @@ linear-gradient(135deg,#f6f8fe 0%,#ffffff 40%,#fbfbfe 100%)}
 .tabs{display:grid;grid-template-columns:1fr 1fr;background:#f2f4fa;padding:5px;border-radius:14px;margin-bottom:22px;box-shadow:inset 0 0 0 1px rgba(23,23,95,.04)}
 .tab{border:0;background:transparent;padding:10px;border-radius:9px;color:var(--muted);font-weight:800}
 .tab.active{background:#fff;color:var(--navy);box-shadow:0 8px 18px rgba(23,23,95,.10)}
-.auth-form{display:none;gap:14px}.auth-form.active{display:grid}
+.auth-form{display:none;gap:14px}.auth-form.active{display:grid}.auth-card #loginForm:not(.active),.auth-card #initialPasswordForm:not(.active){display:none!important}
 .auth-note{background:var(--orange-soft);border:1px solid #ffd7c8;padding:12px 13px;border-radius:12px;font-size:11px;line-height:1.55;color:#78402a}
 .error-box{display:none;background:#fff0f1;color:var(--danger);padding:10px 12px;border-radius:10px;font-size:12px}.error-box.show{display:block}
 
@@ -492,8 +492,8 @@ label{font-weight:700;color:#334155;letter-spacing:.01em}
 
   <div class="auth-panel">
     <div class="auth-card">
-      <h2>Iniciar sesión</h2>
-      <p>Accede a tus viajes, anticipos, comprobaciones y aprobaciones.</p>
+      <h2 id="authTitle">Iniciar sesión</h2>
+      <p id="authSubtitle">Accede a tus viajes, anticipos, comprobaciones y aprobaciones.</p>
       <form id="loginForm" class="auth-form active">
         <div class="error-box" id="loginError"></div>
         <div class="field"><label>Correo electrónico</label><input id="loginEmail" type="email" required autocomplete="username" placeholder="correo@durandco.com"></div>
@@ -504,8 +504,6 @@ label{font-weight:700;color:#334155;letter-spacing:.01em}
         </div>
       </form>
       <form id="initialPasswordForm" class="auth-form" style="display:none">
-        <h2>Crea tu contraseña</h2>
-        <p>Este es tu primer acceso. Antes de continuar debes reemplazar la contraseña temporal por una contraseña personal.</p>
         <div class="error-box" id="initialPasswordError"></div>
         <div class="field"><label>Nueva contraseña</label><input id="initialNewPassword" type="password" required minlength="8" autocomplete="new-password" placeholder="Mínimo 8 caracteres, letras y números"></div>
         <div class="field"><label>Confirma tu contraseña</label><input id="initialNewPasswordConfirm" type="password" required minlength="8" autocomplete="new-password" placeholder="Repite la nueva contraseña"></div>
@@ -1261,16 +1259,25 @@ function showError(id,msg){$(id).textContent=msg;$(id).classList.toggle('show',B
 let loginPortalBusy=false;
 let authFlowInProgress=false;
 function showInitialPasswordSetup(){
+ $('authTitle').textContent='Crea tu contraseña';
+ $('authSubtitle').textContent='Primer acceso: define una contraseña personal para continuar.';
+ $('loginForm').classList.remove('active');
  $('loginForm').style.display='none';
- $('initialPasswordForm').style.display='block';
+ $('initialPasswordForm').classList.add('active');
+ $('initialPasswordForm').style.display='grid';
  $('initialNewPassword').value='';
  $('initialNewPasswordConfirm').value='';
+ showError('loginError','');
  showError('initialPasswordError','');
  setTimeout(()=>$('initialNewPassword')?.focus(),50);
 }
 function showLoginForm(){
+ $('authTitle').textContent='Iniciar sesión';
+ $('authSubtitle').textContent='Accede a tus viajes, anticipos, comprobaciones y aprobaciones.';
+ $('initialPasswordForm').classList.remove('active');
  $('initialPasswordForm').style.display='none';
- $('loginForm').style.display='block';
+ $('loginForm').classList.add('active');
+ $('loginForm').style.display='grid';
  showError('initialPasswordError','');
 }
 async function completeInitialPassword(e){
