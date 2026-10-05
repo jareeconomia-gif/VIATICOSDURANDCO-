@@ -3559,7 +3559,35 @@ function v4Invoices(r){
  }
  return[v4NewInvoice(r,0)]
 }
-function v4TotalGross(invoices){return(invoices||[]).reduce((sum,x)=>sum+(Number(x.grossAmount)||0),0)}
+function v4TaxMeta(code=''){
+ const map={
+  '2C':{label:'IVA por acreditar 16%',rate:16},
+  '2N':{label:'IVA EXENTO pendiente de pago',rate:0},
+  '2O':{label:'IVA 0% pendiente de pago',rate:0},
+  '2Q':{label:'IVA por acreditar 8%',rate:8},
+  '2Z':{label:'No aplica',rate:0},
+  '3C':{label:'IVA Acreditable 16%',rate:16},
+  '3N':{label:'IVA EXENTO pagado',rate:0},
+  '3O':{label:'IVA 0% pagado',rate:0},
+  '3P':{label:'IVA No deducible 16% pagado',rate:16},
+  '3Q':{label:'IVA Acreditable 8%',rate:8},
+  '3Z':{label:'No aplica',rate:0},
+  '6X':{label:'IVA Acreditable 10%',rate:10}
+ };
+ return map[String(code||'').trim()]||{label:'',rate:0}
+}
+function v4TaxForAmount(amount,code){
+ const base=Math.round((Number(amount)||0)*100)/100,meta=v4TaxMeta(code);
+ const tax=Math.round(base*(meta.rate/100)*100)/100;
+ return{base,tax,gross:Math.round((base+tax)*100)/100,rate:meta.rate,label:meta.label}
+}
+function v4ComprobanteTotals(inv){
+ const pos=(inv?.positions&&inv.positions[0])||{};
+ return v4TaxForAmount(Number(pos.amount??inv?.grossAmount??0)||0,pos.taxCode||'')
+}
+function v4TotalBase(invoices){return Math.round((invoices||[]).reduce((sum,x)=>sum+v4ComprobanteTotals(x).base,0)*100)/100}
+function v4TotalTax(invoices){return Math.round((invoices||[]).reduce((sum,x)=>sum+v4ComprobanteTotals(x).tax,0)*100)/100}
+function v4TotalGross(invoices){return Math.round((v4TotalBase(invoices)+v4TotalTax(invoices))*100)/100}
 function v4TaxOptions(value=''){
  const known=[
   ['2C','IVA por acreditar 16%'],
@@ -3604,28 +3632,29 @@ function v4SyncAutoDates(invId){
  if(!posting)return;
  ['due','taxdate','taxreport','taxfulfill'].forEach(k=>{const el=$('v4_'+k+'_'+invId);if(el)el.value=posting});
 }
-function v4InvoiceBalanceData(inv){
- const gross=Math.round((Number(inv.grossAmount)||0)*100)/100;
- const registered=Math.round((inv.positions||[]).reduce((s,p)=>s+(Number(p.amount)||0),0)*100)/100;
- const remaining=Math.round((gross-registered)*100)/100;
- return{gross,registered,remaining,balanced:gross>0&&Math.abs(remaining)<=0.01,over:remaining<-.01}
+function v4GlobalBalanceData(r,invoices){
+ const delivered=Math.round((Number(resourceAmountForRequest(r))||0)*100)/100;
+ const base=v4TotalBase(invoices),tax=v4TotalTax(invoices),gross=v4TotalGross(invoices);
+ const difference=Math.round((delivered-gross)*100)/100;
+ return{delivered,base,tax,gross,difference,employeeOwes:Math.max(0,difference),companyOwes:Math.max(0,-difference),balanced:Math.abs(difference)<=0.01}
 }
-function v4LiveBalanceHtml(inv){
- const b=v4InvoiceBalanceData(inv);
- const cls=b.balanced?'balanced':b.over?'over':'remaining';
- const state=b.balanced?'<span class="sap-v4-balance-state ok">✓ Cuadrada</span>':b.over?'<span class="sap-v4-balance-state over">Excedida</span>':'<span class="sap-v4-balance-state">Pendiente</span>';
+function v4GlobalBalanceHtml(r,invoices){
+ const b=v4GlobalBalanceData(r,invoices);
+ const status=b.balanced?'<span class="sap-v4-balance-state ok">✓ Cuadrada</span>':b.difference>0?'<span class="sap-v4-balance-state">Pendiente / reintegro</span>':'<span class="sap-v4-balance-state over">Reembolso</span>';
  return '<div class="sap-v4-live-balance">'+
-   '<div><small>Total de la factura</small><strong>'+MXN.format(b.gross)+'</strong></div>'+
-   '<div><small>Registrado en posiciones</small><strong>'+MXN.format(b.registered)+'</strong></div>'+
-   '<div class="'+cls+'"><small>Saldo por asignar</small><strong>'+MXN.format(b.remaining)+'</strong></div>'+
-   '<div><small>Estatus</small><strong style="font-size:12px">'+state+'</strong></div>'+
+  '<div><small>Monto entregado</small><strong>'+MXN.format(b.delivered)+'</strong></div>'+
+  '<div><small>Subtotal comprobantes</small><strong>'+MXN.format(b.base)+'</strong></div>'+
+  '<div><small>IVA calculado</small><strong>'+MXN.format(b.tax)+'</strong></div>'+
+  '<div><small>Total comprobado</small><strong>'+MXN.format(b.gross)+'</strong></div>'+
+  '<div class="'+(b.balanced?'balanced':b.difference>0?'remaining':'over')+'"><small>Diferencia</small><strong>'+MXN.format(b.difference)+'</strong></div>'+
+  '<div><small>Estatus</small><strong style="font-size:12px">'+status+'</strong></div>'+
  '</div>'
 }
-function v4InvoiceMatchHtml(inv){
- const b=v4InvoiceBalanceData(inv);
- if(b.balanced)return '<strong>✓ Factura cuadrada.</strong> Ya distribuiste el total completo de '+MXN.format(b.gross)+'.';
- if(b.over)return '<strong>Importe excedido.</strong> Registraste '+MXN.format(Math.abs(b.remaining))+' más que el total de la factura.';
- return '<strong>Saldo pendiente:</strong> todavía faltan '+MXN.format(b.remaining)+' por registrar en las posiciones.'
+function v4ComprobanteTaxHtml(inv){
+ const t=v4ComprobanteTotals(inv);
+ return '<div class="sap-v4-match '+(t.base>0?'ok':'')+'">'+
+  '<strong>Base '+MXN.format(t.base)+'</strong> · IVA '+t.rate+'%: <strong>'+MXN.format(t.tax)+'</strong> · Total comprobante: <strong>'+MXN.format(t.gross)+'</strong>'+
+ '</div>'
 }
 function v4PositionRow(r,inv,pos,index,locked){
  return'<tr data-v4-pos-row="'+index+'">'+
@@ -3638,18 +3667,19 @@ function v4PositionRow(r,inv,pos,index,locked){
 }
 function v4InvoiceCard(r,inv,index,locked){
  const pos=(inv.positions&&inv.positions[0])||v4NewPosition(r,0);
- return'<div class="sap-v4-invoice" data-v4-invoice-id="'+safe(inv.id)+'">'+
- '<div class="sap-v4-invoice-head"><div><h4>Comprobante '+(index+1)+'</h4><div style="font-size:9px;color:var(--muted);margin-top:2px">Esta fila será una posición del libro mayor en SAP</div></div>'+(locked?'':'<button class="icon-btn danger" title="Eliminar comprobante" onclick="v4RemoveInvoice(\''+safe(r.id)+'\',\''+safe(inv.id)+'\')">×</button>')+'</div>'+
+ return'<div class="sap-v4-invoice" data-v4-invoice-id="'+safe(inv.id)+'" data-v4-index="'+index+'">'+
+ '<div class="sap-v4-invoice-head"><div><h4>Comprobante '+(index+1)+'</h4><div style="font-size:9px;color:var(--muted);margin-top:2px">Este comprobante será una posición del libro mayor en SAP</div></div>'+(locked?'':'<button class="icon-btn danger" title="Eliminar comprobante" onclick="v4RemoveInvoice(\''+safe(r.id)+'\',\''+safe(inv.id)+'\')">×</button>')+'</div>'+
  '<div class="sap-v4-section">'+
   '<div class="sap-v4-grid">'+
    '<div class="field"><label>Fecha</label><input class="v4-doc" type="date" value="'+safe(inv.documentDate||'')+'" '+(locked?'disabled':'')+'></div>'+
    '<div class="field"><label>Folio / referencia <span style="font-weight:400;color:var(--muted)">(si aplica)</span></label><input class="v4-ref" maxlength="16" value="'+safe(inv.reference||'')+'" placeholder="Factura, ticket o referencia" '+(locked?'disabled':'')+'></div>'+
    '<div class="field span2"><label>Cuenta SAP</label><select class="v4-acc" '+(locked?'disabled':'')+'>'+v4AccountOptions(pos.glAccount||'')+'</select></div>'+
    '<div class="field span2"><label>Concepto</label><input class="v4-txt" value="'+safe(pos.itemText||'')+'" maxlength="50" placeholder="Ej. Hotel, Uber, comida, estacionamiento..." '+(locked?'disabled':'')+'></div>'+
-   '<div class="field"><label>Importe</label><input class="v4-amt" type="number" min="0" step=".01" value="'+Number(pos.amount||inv.grossAmount||0).toFixed(2)+'" placeholder="0.00" oninput="v4RefreshSummary(\''+safe(r.id)+'\')" '+(locked?'disabled':'')+'></div>'+
+   '<div class="field"><label>Importe antes de IVA</label><input class="v4-amt" type="number" min="0" step=".01" value="'+Number(pos.amount||inv.grossAmount||0).toFixed(2)+'" placeholder="0.00" oninput="v4RefreshSummary(\''+safe(r.id)+'\')" '+(locked?'disabled':'')+'></div>'+
    '<div class="field"><label>Moneda</label><select class="v4-curr" onchange="v4RefreshSummary(\''+safe(r.id)+'\')" '+(locked?'disabled':'')+'><option '+((inv.currency||'MXN')==='MXN'?'selected':'')+'>MXN</option><option '+(inv.currency==='USD'?'selected':'')+'>USD</option></select></div>'+
    '<div class="field span2"><label>IVA</label><select class="v4-tax" onchange="v4RefreshSummary(\''+safe(r.id)+'\')" '+(locked?'disabled':'')+'>'+v4TaxOptions(pos.taxCode||'')+'</select></div>'+
   '</div>'+
+  '<div id="v4_taxline_'+index+'">'+v4ComprobanteTaxHtml(inv)+'</div>'+
   '<div class="sap-v4-friendly-title" style="margin-top:14px"><b>✓</b><strong>Soporte del comprobante</strong></div>'+
   '<p class="sap-v4-help">Adjunta XML/PDF cuando exista factura; para tickets puedes subir fotografía o PDF.</p>'+
   '<div class="sap-v4-files">'+v4Attachment(inv,r,locked,'xml','XML','.xml')+v4Attachment(inv,r,locked,'pdf','PDF','.pdf')+v4Attachment(inv,r,locked,'ticket','Ticket / fotografía','.jpg,.jpeg,.png,.pdf')+'</div>'+
@@ -3658,11 +3688,13 @@ function v4InvoiceCard(r,inv,index,locked){
 }
 function v4CollectInvoices(r){
  const base=v4Invoices(r),year=new Date().getFullYear();
- return base.map((inv,index)=>{
-  const card=document.querySelector('[data-v4-invoice-id="'+CSS.escape(String(inv.id))+'"]');
-  if(!card)return inv;
+ const cards=[...document.querySelectorAll('#invoiceCaptureContent .sap-v4-invoice[data-v4-invoice-id]')];
+ if(!cards.length)return base;
+ return cards.map((card,index)=>{
+  const inv=base[index]||v4NewInvoice(r,index);
   const source=(inv.positions&&inv.positions[0])||v4NewPosition(r,0);
   const amount=Number(card.querySelector('.v4-amt')?.value||0)||0;
+  const taxCode=String(card.querySelector('.v4-tax')?.value||'').trim();
   const posting=v4Today();
   const reference=String(card.querySelector('.v4-ref')?.value||'').trim()||('COMPROBANTE '+(index+1));
   const pos={
@@ -3672,13 +3704,15 @@ function v4CollectInvoices(r){
    itemText:String(card.querySelector('.v4-txt')?.value||'').trim(),
    debitCredit:'S',
    amount,
-   taxCode:String(card.querySelector('.v4-tax')?.value||'').trim(),
+   taxCode,
    assignment:'FACTURA',
    costCenter:String(r.costProject||source.costCenter||'').slice(0,10)
   };
+  const t=v4TaxForAmount(amount,taxCode);
   return{
    ...inv,
-   invoiceId:String(index+1),
+   id:inv.id||('INV-'+Date.now()+'-'+index),
+   invoiceId:'1',
    companyCode:v4SocietyForRequest(r),
    operation:'1',
    invoicingParty:currentUser?.sapVendorId||'',
@@ -3688,7 +3722,9 @@ function v4CollectInvoices(r){
    documentType:'KR',
    headerText:'VIATICOS '+year,
    currency:card.querySelector('.v4-curr')?.value||'MXN',
-   grossAmount:amount,
+   grossAmount:t.gross,
+   baseAmount:t.base,
+   taxAmount:t.tax,
    dueCalculationBaseDate:posting,
    taxDeterminationDate:posting,
    countryReference1:'N/A',
@@ -3705,13 +3741,22 @@ async function v4MergeFiles(invoices){
 function v4Validate(r,invoices,submit=false){
  const e=[];if(!currentUser?.sapVendorId)e.push('Administración debe configurar primero tu Emisor SAP (10).');
  invoices.forEach((inv,i)=>{
-  [['ID de factura',inv.invoiceId],['Referencia',inv.reference],['Fecha de documento',inv.documentDate],['Fecha de contabilización',inv.postingDate],['Texto cabecera',inv.headerText],['Moneda',inv.currency],['Importe bruto',inv.grossAmount],['Fecha base vencimiento',inv.dueCalculationBaseDate],['Fecha tipos impositivos',inv.taxDeterminationDate],['Fecha declaración fiscal',inv.taxReportingDate],['Fecha cumplimiento fiscal',inv.taxFulfillmentDate]].forEach(([label,val])=>{if(val===null||val===undefined||String(val).trim()===''||(label==='Importe bruto'&&!(Number(val)>0)))e.push('Factura '+(i+1)+': falta '+label)});
-  if(!inv.positions.length)e.push('Comprobante '+(i+1)+': falta la posición contable.');
-  inv.positions.forEach((p)=>{[['Cuenta',p.glAccount],['Concepto',p.itemText],['Importe',p.amount],['IVA',p.taxCode]].forEach(([label,val])=>{if(val===null||val===undefined||String(val).trim()===''||(label==='Importe'&&!(Number(val)>0)))e.push('Comprobante '+(i+1)+': falta '+label)})});
+  const p=(inv.positions&&inv.positions[0])||{};
+  if(!inv.documentDate)e.push('Comprobante '+(i+1)+': falta la fecha.');
+  if(!p.glAccount)e.push('Comprobante '+(i+1)+': falta la cuenta SAP.');
+  if(!p.itemText)e.push('Comprobante '+(i+1)+': falta el concepto.');
+  if(!(Number(p.amount)>0))e.push('Comprobante '+(i+1)+': el importe debe ser mayor a cero.');
+  if(!p.taxCode)e.push('Comprobante '+(i+1)+': selecciona el IVA.');
   if(submit&&!inv.xmlData&&!inv.pdfData&&!inv.ticketData)e.push('Comprobante '+(i+1)+': adjunta XML, PDF o ticket/fotografía.');
  });
- const delivered=Number(resourceAmountForRequest(r))||0,total=v4TotalGross(invoices),returnDue=Math.max(0,delivered-total);
- if(submit&&returnDue>0){const amt=Number($('v4_returnAmount')?.value||0);if(Math.abs(amt-returnDue)>.01)e.push('El reintegro debe ser exactamente '+MXN.format(returnDue));if(!$('v4_returnDate')?.value)e.push('Captura la fecha del reintegro.');if(!String($('v4_returnReference')?.value||'').trim())e.push('Captura la referencia del reintegro.');if(!r.proof?.returnFileData&&!$('v4_returnFile')?.files?.[0])e.push('Adjunta el comprobante del reintegro.')}
+ const b=v4GlobalBalanceData(r,invoices);
+ if(submit&&b.employeeOwes>0){
+  const amt=Number($('v4_returnAmount')?.value||0);
+  if(Math.abs(amt-b.employeeOwes)>.01)e.push('El reintegro debe ser exactamente '+MXN.format(b.employeeOwes));
+  if(!$('v4_returnDate')?.value)e.push('Captura la fecha del reintegro.');
+  if(!String($('v4_returnReference')?.value||'').trim())e.push('Captura la referencia del reintegro.');
+  if(!r.proof?.returnFileData&&!$('v4_returnFile')?.files?.[0])e.push('Adjunta el comprobante del reintegro.')
+ }
  return e
 }
 function v4RefreshSummary(id){
@@ -3719,15 +3764,17 @@ function v4RefreshSummary(id){
  const r=requests.find(x=>x.id===id);if(!r)return;
  const inv=v4CollectInvoices(r),total=v4TotalGross(inv);
  if($('v4_total'))$('v4_total').textContent=MXN.format(total);
+ inv.forEach((x,i)=>{const el=$('v4_taxline_'+i);if(el)el.innerHTML=v4ComprobanteTaxHtml(x)});
+ if($('v4_globalBalance'))$('v4_globalBalance').innerHTML=v4GlobalBalanceHtml(r,inv);
  if($('v4_reconcile'))$('v4_reconcile').innerHTML=v4ReconcileHtml(r,inv)
 }
 function v4ReconcileHtml(r,invoices){
- const delivered=Number(resourceAmountForRequest(r))||0,total=v4TotalGross(invoices),employeeOwes=Math.max(0,delivered-total),companyOwes=Math.max(0,total-delivered),b=appConfig.reimbursementBank||{},p=r.proof||{};
+ const b=v4GlobalBalanceData(r,invoices),bank=appConfig.reimbursementBank||{},p=r.proof||{};
  let extra='';
- if(employeeOwes>0)extra='<div class="sap-v4-note" style="margin-top:12px;background:#fff5f6;color:#7c2932"><strong>Debes reintegrar '+MXN.format(employeeOwes)+' a la empresa.</strong></div><div class="sap-v4-grid" style="margin-top:10px"><div class="field"><label>Banco</label><input class="sap-v4-readonly" value="'+safe(b.bank||'No configurado')+'" readonly></div><div class="field"><label>CLABE</label><input class="sap-v4-readonly" value="'+safe(b.clabe||'No configurada')+'" readonly></div><div class="field"><label>Fecha depósito</label><input id="v4_returnDate" type="date" value="'+safe(p.returnDate||v4Today())+'"></div><div class="field"><label>Importe reintegro</label><input id="v4_returnAmount" type="number" step=".01" value="'+Number(p.returnAmount||employeeOwes).toFixed(2)+'"></div><div class="field span2"><label>Referencia</label><input id="v4_returnReference" value="'+safe(p.returnReference||'')+'"></div><div class="field span2"><label>Comprobante reintegro</label><input id="v4_returnFile" type="file" accept=".pdf,.jpg,.jpeg,.png">'+(p.returnFileName?'<span class="sap-v4-saved" onclick="downloadReturnFile(\''+safe(r.id)+'\')">Ver '+safe(p.returnFileName)+'</span>':'')+'</div></div>';
- else if(companyOwes>0)extra='<div class="sap-v4-note" style="margin-top:12px"><strong>Saldo a favor del empleado: '+MXN.format(companyOwes)+'.</strong> Génesis verá este monto para gestionar el reembolso.</div>';
+ if(b.employeeOwes>0)extra='<div class="sap-v4-note" style="margin-top:12px;background:#fff5f6;color:#7c2932"><strong>Debes reintegrar '+MXN.format(b.employeeOwes)+' a la empresa.</strong></div><div class="sap-v4-grid" style="margin-top:10px"><div class="field"><label>Banco</label><input class="sap-v4-readonly" value="'+safe(bank.bank||'No configurado')+'" readonly></div><div class="field"><label>CLABE</label><input class="sap-v4-readonly" value="'+safe(bank.clabe||'No configurada')+'" readonly></div><div class="field"><label>Fecha depósito</label><input id="v4_returnDate" type="date" value="'+safe(p.returnDate||v4Today())+'"></div><div class="field"><label>Importe reintegro</label><input id="v4_returnAmount" type="number" step=".01" value="'+Number(p.returnAmount||b.employeeOwes).toFixed(2)+'"></div><div class="field span2"><label>Referencia</label><input id="v4_returnReference" value="'+safe(p.returnReference||'')+'"></div><div class="field span2"><label>Comprobante reintegro</label><input id="v4_returnFile" type="file" accept=".pdf,.jpg,.jpeg,.png">'+(p.returnFileName?'<span class="sap-v4-saved" onclick="downloadReturnFile(\''+safe(r.id)+'\')">Ver '+safe(p.returnFileName)+'</span>':'')+'</div></div>';
+ else if(b.companyOwes>0)extra='<div class="sap-v4-note" style="margin-top:12px"><strong>Saldo a favor del empleado: '+MXN.format(b.companyOwes)+'.</strong> Génesis verá este monto para gestionar el reembolso.</div>';
  else extra='<div class="sap-v4-note" style="margin-top:12px;background:#eef8f0;color:#286237"><strong>Comprobación cuadrada.</strong> No hay saldo pendiente.</div>';
- return'<div class="sap-v4-reconcile"><div><small>Monto entregado</small><strong>'+MXN.format(delivered)+'</strong></div><div><small>Total comprobado</small><strong>'+MXN.format(total)+'</strong></div><div><small>Diferencia</small><strong>'+MXN.format(delivered-total)+'</strong></div><div><small>Resultado</small><strong>'+safe(employeeOwes>0?'Reintegro':companyOwes>0?'Reembolso':'Cuadrada')+'</strong></div></div>'+extra
+ return'<div class="sap-v4-reconcile"><div><small>Monto entregado</small><strong>'+MXN.format(b.delivered)+'</strong></div><div><small>Subtotal comprobantes</small><strong>'+MXN.format(b.base)+'</strong></div><div><small>IVA calculado</small><strong>'+MXN.format(b.tax)+'</strong></div><div><small>Total comprobado</small><strong>'+MXN.format(b.gross)+'</strong></div><div><small>Diferencia</small><strong>'+MXN.format(b.difference)+'</strong></div><div><small>Resultado</small><strong>'+safe(b.employeeOwes>0?'Reintegro':b.companyOwes>0?'Reembolso':'Cuadrada')+'</strong></div></div>'+extra
 }
 function v4AddInvoice(id){const r=requests.find(x=>x.id===id);if(!r)return;const p=r.proof||{};p.sapInvoices=v4CollectInvoices(r);p.sapInvoices.push(v4NewInvoice(r,p.sapInvoices.length));r.proof=p;renderInvoiceCapture()}
 function v4RemoveInvoice(id,invId){const r=requests.find(x=>x.id===id);if(!r)return;if(!confirm('¿Eliminar este comprobante de la comprobación?'))return;const p=r.proof||{};p.sapInvoices=v4CollectInvoices(r).filter(x=>x.id!==invId);if(!p.sapInvoices.length)p.sapInvoices=[v4NewInvoice(r,0)];r.proof=p;renderInvoiceCapture()}
@@ -3742,11 +3789,11 @@ async function saveProofV4(id,submit=false){
  try{invoices=await v4MergeFiles(liveSnapshot)}catch(e){toast(e.message);return}
  const errors=v4Validate(r,invoices,submit);
  if(errors.length){toast(errors[0]);return}
- const p=r.proof||{},delivered=Number(resourceAmountForRequest(r))||0,total=v4TotalGross(invoices),employeeOwes=Math.max(0,delivered-total),companyOwes=Math.max(0,total-delivered);
- p.sapInvoices=invoices;p.actualTotal=total;p.approvedTotal=delivered;p.difference=delivered-total;p.employeeOwes=employeeOwes;p.companyOwes=companyOwes;p.sapVendorId=currentUser.sapVendorId||'';p.companyCode=v4SocietyForRequest(r);p.currency='MXN';p.lastSavedAt=new Date().toISOString();
+ const p=r.proof||{},balance=v4GlobalBalanceData(r,invoices),delivered=balance.delivered,total=balance.gross,employeeOwes=balance.employeeOwes,companyOwes=balance.companyOwes;
+ p.sapInvoices=invoices;p.actualBase=balance.base;p.actualTax=balance.tax;p.actualTotal=total;p.approvedTotal=delivered;p.difference=balance.difference;p.employeeOwes=employeeOwes;p.companyOwes=companyOwes;p.sapVendorId=currentUser.sapVendorId||'';p.companyCode=v4SocietyForRequest(r);p.currency='MXN';p.lastSavedAt=new Date().toISOString();
  if(employeeOwes>0){p.returnDate=$('v4_returnDate')?.value||p.returnDate||'';p.returnAmount=Number($('v4_returnAmount')?.value||p.returnAmount||0);p.returnReference=String($('v4_returnReference')?.value||p.returnReference||'').trim();const file=$('v4_returnFile')?.files?.[0];if(file){try{const info=await readFileDataV3(file);p.returnFileName=info.name;p.returnFileData=info.data}catch(e){toast(e.message);return}}}
  // Compatibilidad para métricas existentes.
- p.expenseLines=invoices.flatMap(inv=>inv.positions.map(pos=>({id:pos.id,documentDate:inv.documentDate,postingDate:inv.postingDate,invoiceNumber:inv.reference,vendor:r.requester,concept:pos.itemText,amount:Number(pos.amount)||0,currency:inv.currency,taxCode:pos.taxCode,costCenter:pos.costCenter,account:pos.glAccount,reference:pos.assignment,text:pos.itemText})));
+ p.expenseLines=invoices.flatMap(inv=>inv.positions.map(pos=>{const t=v4TaxForAmount(pos.amount,pos.taxCode);return{id:pos.id,documentDate:inv.documentDate,postingDate:inv.postingDate,invoiceNumber:inv.reference,vendor:r.requester,concept:pos.itemText,amount:t.base,taxAmount:t.tax,grossAmount:t.gross,currency:inv.currency,taxCode:pos.taxCode,costCenter:pos.costCenter,account:pos.glAccount,reference:pos.assignment,text:pos.itemText}}));
  if(submit){if(!confirm('¿Enviar la comprobación a Génesis? El sistema dejará listo el layout oficial de SAP.'))return;p.status='Enviada';p.submittedAt=new Date().toISOString();p.submittedBy=currentUser.name;p.layoutGeneratedAt=p.submittedAt;r.history=r.history||[];r.history.push({stage:'Comprobación enviada',by:currentUser.name,date:p.submittedAt,comment:'Total comprobado '+MXN.format(total)});r.history.push({stage:'Layout SAP listo',by:'Sistema',date:p.submittedAt,comment:'Plantilla oficial Factura de proveedor_ES'})}else{p.status=employeeOwes>0?'Pendiente de reintegro':'En captura'}
  r.proof=p;persist();if(submit){activeInvoiceRequestId='';showView('proofs');renderProofs();renderMy();renderDashboard();toast('Comprobación enviada a Génesis con layout SAP listo.')}else{renderInvoiceCapture();toast('Borrador guardado')}
 }
@@ -3758,7 +3805,7 @@ renderInvoiceCapture=function(){
  box.innerHTML='<div class="sap-v4-wrap"><div class="sap-v4-top"><div style="display:flex;justify-content:space-between;gap:14px;align-items:flex-start;flex-wrap:wrap"><div><h3>Comprobación de gastos</h3><p>Registra tus facturas y comprobantes. El portal prepara automáticamente la información necesaria para SAP.</p></div><button class="btn btn-light" onclick="showView(\'proofs\')">← Volver</button></div><div class="sap-v4-summary"><div><small>Solicitud</small><strong>'+safe(r.id)+'</strong></div><div><small>Emisor de factura</small><strong>'+safe(r.requester)+'</strong></div><div><small>Monto entregado</small><strong>'+MXN.format(delivered)+'</strong></div><div><small>Total comprobado</small><strong id="v4_total">'+MXN.format(total)+'</strong></div></div></div>'+
  '<div class="sap-v4-body"><div class="sap-v4-note"><strong>Una fila = un comprobante.</strong> Hotel, Uber, comida, estacionamiento, etc. Cada comprobante genera una posición del libro mayor; el portal arma el layout SAP automáticamente.</div><div class="sap-v4-guide"><div><b>1</b><span>Agrega cada comprobante</span></div><div><b>2</b><span>Selecciona cuenta e IVA</span></div><div><b>3</b><span>Adjunta XML, PDF o ticket</span></div><div><b>4</b><span>Revisa el total y envía</span></div></div>'+
  (currentUser.sapVendorId?'':'<div class="notice error" style="margin-top:12px"><strong>Falta Emisor SAP (10).</strong> Génesis debe configurarlo en Configuración → Usuarios antes de poder enviar la comprobación.</div>')+
- '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin:16px 0 10px"><div><strong style="color:var(--navy);font-size:14px">Comprobantes de gasto</strong><div style="font-size:10px;color:var(--muted)">Cada tarjeta representa una factura, ticket o gasto y equivale a una posición del libro mayor.</div></div>'+(locked?'':'<button class="btn btn-orange" onclick="v4AddInvoice(\''+safe(r.id)+'\')">＋ Agregar comprobante</button>')+'</div>'+
+ '<div class="sap-v4-invoice" style="margin-top:16px"><div class="sap-v4-section"><div class="sap-v4-friendly-title"><b>Σ</b><strong>Cuadre SAP de la comprobación</strong></div><p class="sap-v4-help">El total se calcula como subtotal de posiciones + IVA según el indicador seleccionado, igual que en SAP.</p><div id="v4_globalBalance">'+v4GlobalBalanceHtml(r,invoices)+'</div></div></div>'+'<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin:16px 0 10px"><div><strong style="color:var(--navy);font-size:14px">Comprobantes de gasto</strong><div style="font-size:10px;color:var(--muted)">Cada tarjeta representa una factura, ticket o gasto y equivale a una posición del libro mayor.</div></div>'+(locked?'':'<button class="btn btn-orange" onclick="v4AddInvoice(\''+safe(r.id)+'\')">＋ Agregar comprobante</button>')+'</div>'+
  invoices.map((inv,i)=>v4InvoiceCard(r,inv,i,locked)).join('')+
  '<div class="sap-v4-invoice"><div class="sap-v4-section"><div class="sap-v4-section-title">Conciliación de la comprobación</div><div id="v4_reconcile">'+v4ReconcileHtml(r,invoices)+'</div></div></div>'+
  '<div class="sap-v4-invoice"><div class="sap-v4-section"><div class="sap-v4-section-title">Historial</div>'+proofV3History(r)+'</div></div></div>'+
@@ -3779,9 +3826,9 @@ openProofReview=function(id){
  const rowsHtml=invoices.map((inv,i)=>{
   const pos=(inv.positions&&inv.positions[0])||{};
   const files=[inv.xmlData?'XML':'',inv.pdfData?'PDF':'',inv.ticketData?'Ticket':''].filter(Boolean).join(' · ')||'—';
-  return'<tr><td>'+(i+1)+'</td><td>'+safe(inv.documentDate||'—')+'</td><td>'+safe(inv.reference||'—')+'</td><td>'+safe(pos.glAccount||'—')+'</td><td>'+safe(pos.itemText||'—')+'</td><td><strong>'+MXN.format(Number(pos.amount)||0)+'</strong></td><td>'+safe(pos.taxCode||'—')+'</td><td>'+safe(inv.currency||'MXN')+'</td><td>'+files+'</td></tr>'
+  const t=v4TaxForAmount(pos.amount,pos.taxCode);return'<tr><td>'+(i+1)+'</td><td>'+safe(inv.documentDate||'—')+'</td><td>'+safe(inv.reference||'—')+'</td><td>'+safe(pos.glAccount||'—')+'</td><td>'+safe(pos.itemText||'—')+'</td><td>'+MXN.format(t.base)+'</td><td>'+safe(pos.taxCode||'—')+'<br><small>'+MXN.format(t.tax)+'</small></td><td><strong>'+MXN.format(t.gross)+'</strong></td><td>'+safe(inv.currency||'MXN')+'</td><td>'+files+'</td></tr>'
  }).join('');
- const comprobantes='<div class="sap-v4-invoice"><div class="sap-v4-section"><h4 style="margin:0 0 10px">Comprobantes / posiciones del libro mayor</h4><div class="table-wrap"><table class="data"><thead><tr><th>#</th><th>Fecha</th><th>Folio / referencia</th><th>Cuenta</th><th>Concepto</th><th>Importe</th><th>IVA</th><th>Moneda</th><th>Archivos</th></tr></thead><tbody>'+rowsHtml+'</tbody></table></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">'+invoices.map(inv=>v4ReviewFileButton(r,inv,'xml','XML')+v4ReviewFileButton(r,inv,'pdf','PDF')+v4ReviewFileButton(r,inv,'ticket','Ticket')).join('')+'</div></div></div>';
+ const comprobantes='<div class="sap-v4-invoice"><div class="sap-v4-section"><h4 style="margin:0 0 10px">Comprobantes / posiciones del libro mayor</h4><div class="table-wrap"><table class="data"><thead><tr><th>#</th><th>Fecha</th><th>Folio / referencia</th><th>Cuenta</th><th>Concepto</th><th>Base</th><th>IVA</th><th>Total</th><th>Moneda</th><th>Archivos</th></tr></thead><tbody>'+rowsHtml+'</tbody></table></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">'+invoices.map(inv=>v4ReviewFileButton(r,inv,'xml','XML')+v4ReviewFileButton(r,inv,'pdf','PDF')+v4ReviewFileButton(r,inv,'ticket','Ticket')).join('')+'</div></div></div>';
  let reintegro='';
  if(employeeOwes>0)reintegro='<div class="notice '+(p.returnValidated?'':'error')+'"><strong>Reintegro: '+MXN.format(employeeOwes)+'</strong><br>Fecha: '+safe(p.returnDate||'—')+' · Ref: '+safe(p.returnReference||'—')+' · '+(p.returnValidated?'Depósito recibido / validado':'Pendiente de validación')+(p.returnFileData?'<br><button class="btn btn-light" style="margin-top:8px" onclick="downloadReturnFile(\''+safe(r.id)+'\')">Descargar comprobante</button>':'')+(isMaster&&!p.returnValidated?'<button class="btn btn-orange" style="margin:8px 0 0 8px" onclick="masterValidateReturnV4(\''+safe(r.id)+'\')">Depósito recibido / validado</button>':'')+'</div>';
  else if(companyOwes>0)reintegro='<div class="notice"><strong>Saldo a favor del empleado: '+MXN.format(companyOwes)+'</strong></div>';
