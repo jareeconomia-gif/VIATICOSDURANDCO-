@@ -81,6 +81,12 @@ function setExactTemplateCell(rowXml,col,rowNumber,value,kind='string'){
   }
   return rowXml.replace(rx,cell);
 }
+function sapCompanyCodeForRequest(request,requesterProfile={}){
+  if(requesterProfile.sapCompanyCode)return String(requesterProfile.sapCompanyCode).slice(0,4);
+  if(normalize(request?.requesterEmail)==='lams@durandco.com')return'1020';
+  if(requesterProfile.company==='Grupo Industrial Durandco'||request?.company==='Grupo Industrial Durandco')return'1020';
+  return String(request?.proof?.companyCode||'1020').slice(0,4);
+}
 function invoiceGroupsForExactLayout(request,requesterProfile={}){
   const proof=request?.proof||{};
   if(Array.isArray(proof.sapInvoices)&&proof.sapInvoices.length)return proof.sapInvoices;
@@ -88,7 +94,7 @@ function invoiceGroupsForExactLayout(request,requesterProfile={}){
   if(legacy.length){
     return legacy.map((line,index)=>({
       invoiceId:String(index+1),
-      companyCode:proof.companyCode||'4000',
+      companyCode:sapCompanyCodeForRequest(request,requesterProfile),
       operation:'1',
       invoicingParty:requesterProfile.sapVendorId||proof.sapVendorId||'',
       reference:line.invoiceNumber||line.reference||request.id,
@@ -104,7 +110,7 @@ function invoiceGroupsForExactLayout(request,requesterProfile={}){
       taxReportingDate:line.postingDate||line.documentDate||'',
       taxFulfillmentDate:line.postingDate||line.documentDate||'',
       positions:[{
-        companyCode:proof.companyCode||'4000',
+        companyCode:sapCompanyCodeForRequest(request,requesterProfile),
         glAccount:line.account||'',
         itemText:line.text||line.uuid||line.concept||'',
         debitCredit:'S',
@@ -166,7 +172,7 @@ function buildSapLayoutBuffer(request, requesterProfile={}){
   let rowNumber=7;
 
   invoices.forEach((invoice,invoiceIndex)=>{
-    const companyCode=String(invoice.companyCode||'4000').slice(0,4);
+    const companyCode=sapCompanyCodeForRequest(request,requesterProfile);
     const invoiceId=String(invoice.invoiceId||invoiceIndex+1);
     const operation=String(invoice.operation||'1').slice(0,1);
     const documentType=String(invoice.documentType||'KR').slice(0,2);
@@ -195,7 +201,7 @@ function buildSapLayoutBuffer(request, requesterProfile={}){
         ['AT',countryReference1,'string'],
         ['AW',invoice.taxReportingDate,'date'],
         ['AX',invoice.taxFulfillmentDate,'date'],
-        ['BT',String(position.companyCode||companyCode).slice(0,4),'string'],
+        ['BT',companyCode,'string'],
         ['BU',String(position.glAccount||'').slice(0,10),'string'],
         ['BV',String(position.itemText||'').slice(0,50),'string'],
         ['BW',String(position.debitCredit||'S').slice(0,1),'string'],
@@ -343,7 +349,7 @@ const DEFAULT_USERS = [
   },
   {
     id:'LUIS', email:'lams@durandco.com', password:'Luis2026!', name:'Luis Mondragón', role:'capturador',
-    company:'Grupo Industrial Durandco', position:'Director Corporativo', baseCity:'CDMX', canApproveJefe:false, canApproveDireccion:true,
+    company:'Grupo Industrial Durandco', sapCompanyCode:'1020', position:'Director Corporativo', baseCity:'CDMX', canApproveJefe:false, canApproveDireccion:true,
     jefeApproverId:'JEFE', direccionApproverId:'MASTER'
   }
 ];
@@ -472,6 +478,7 @@ function updateLuisIdentity() {
   const payload = sanitizeUserPayload(safeJsonParse(luis.payload, {}), luis);
   payload.name = 'Luis Mondragón';
   payload.email = targetEmail;
+  payload.sapCompanyCode = '1020';
   payload.canApproveDireccion = true;
   payload.direccionApproverId = 'MASTER';
   db.prepare('UPDATE users SET email=?,name=?,role=?,active=1,payload=?,updated_at=? WHERE id=?')
