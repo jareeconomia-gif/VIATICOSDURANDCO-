@@ -328,6 +328,8 @@ const DEFAULT_CONFIG = {
  ]
 };
 
+const INITIAL_USER_PASSWORD = 'SAP123456';
+
 const DEFAULT_USERS = [
   {
     id:'MASTER', email:'gls@durandco.com', password:'123456', name:'Génesis León Sarabia', role:'master',
@@ -383,6 +385,7 @@ function sanitizeUserPayload(payload, row = null) {
     company: String(source.company || ''),
     position: String(source.position || ''),
     baseCity: String(source.baseCity || ''),
+    mustChangePassword: Boolean(source.mustChangePassword),
     canApproveJefe: isMaster ? true : Boolean(source.canApproveJefe),
     canApproveDireccion: isMaster ? true : Boolean(source.canApproveDireccion),
     jefeApproverId: isMaster ? '' : String(source.jefeApproverId || ''),
@@ -662,12 +665,15 @@ function upsertOneUser(user, raw) {
   if (duplicate) throw Object.assign(new Error(`El correo ${payload.email} ya pertenece a otro usuario.`), { statusCode: 409 });
   const suppliedPassword = typeof source.password === 'string' ? source.password : '';
   let passwordHash = existing?.password_hash;
-  if (!existing && suppliedPassword.length < 6) {
-    throw Object.assign(new Error('La contraseña inicial debe tener al menos 6 caracteres.'), { statusCode: 400 });
-  }
-  if (suppliedPassword) {
-    if (suppliedPassword.length < 6) throw Object.assign(new Error('La contraseña debe tener al menos 6 caracteres.'), { statusCode: 400 });
+  if (!existing) {
+    passwordHash = hashPassword(INITIAL_USER_PASSWORD);
+    payload.mustChangePassword = true;
+  } else if (suppliedPassword) {
+    if (suppliedPassword.length < 8 || !/[A-Za-zÁÉÍÓÚáéíóúÑñ]/.test(suppliedPassword) || !/\d/.test(suppliedPassword)) {
+      throw Object.assign(new Error('La contraseña debe tener al menos 8 caracteres, letras y números.'), { statusCode: 400 });
+    }
     passwordHash = hashPassword(suppliedPassword);
+    payload.mustChangePassword = suppliedPassword === INITIAL_USER_PASSWORD;
   }
   const stamp = nowIso();
   db.prepare(`INSERT INTO users(id,email,password_hash,name,role,active,payload,created_at,updated_at)
@@ -701,10 +707,15 @@ async function syncUsers(user, incomingUsers) {
       if (duplicate) throw Object.assign(new Error(`El correo ${payload.email} ya pertenece a otro usuario.`), { statusCode: 409 });
       let passwordHash = existing?.password_hash;
       const suppliedPassword = typeof source.password === 'string' ? source.password : '';
-      if (!existing && suppliedPassword.length < 6) throw Object.assign(new Error(`Define una contraseña inicial de al menos 6 caracteres para ${payload.name}.`), { statusCode: 400 });
-      if (suppliedPassword) {
-        if (suppliedPassword.length < 6) throw Object.assign(new Error('La contraseña debe tener al menos 6 caracteres.'), { statusCode: 400 });
+      if (!existing) {
+        passwordHash = hashPassword(INITIAL_USER_PASSWORD);
+        payload.mustChangePassword = true;
+      } else if (suppliedPassword) {
+        if (suppliedPassword.length < 8 || !/[A-Za-zÁÉÍÓÚáéíóúÑñ]/.test(suppliedPassword) || !/\d/.test(suppliedPassword)) {
+          throw Object.assign(new Error('La contraseña debe tener al menos 8 caracteres, letras y números.'), { statusCode: 400 });
+        }
         passwordHash = hashPassword(suppliedPassword);
+        payload.mustChangePassword = suppliedPassword === INITIAL_USER_PASSWORD;
       }
       db.prepare(`INSERT INTO users(id,email,password_hash,name,role,active,payload,created_at,updated_at) VALUES(?,?,?,?,?,1,?,?,?)
         ON CONFLICT(id) DO UPDATE SET email=excluded.email,password_hash=excluded.password_hash,name=excluded.name,role=excluded.role,
@@ -842,6 +853,28 @@ async function handleApi(req, res, pathname) {
 
   if (req.method === 'GET' && pathname === '/api/me') return json(res, 200, { user });
 
+  if (req.method === 'POST' && pathname === '/api/complete-initial-password') {
+    if (!user.mustChangePassword) return json(res, 409, { error: 'Tu contraseña inicial ya fue reemplazada.' });
+    const body = await readJson(req);
+    const nextPassword = String(body.newPassword || '');
+    if (nextPassword === INITIAL_USER_PASSWORD) return json(res, 400, { error: 'La nueva contraseña debe ser diferente de SAP123456.' });
+    if (nextPassword.length < 8 || !/[A-Za-zÁÉÍÓÚáéíóúÑñ]/.test(nextPassword) || !/\d/.test(nextPassword)) {
+      return json(res, 400, { error: 'La nueva contraseña debe tener al menos 8 caracteres, letras y números.' });
+    }
+    const row = db.prepare('SELECT * FROM users WHERE id=? AND active=1').get(user.id);
+    if (!row) return json(res, 404, { error: 'Usuario no encontrado.' });
+    const payload = sanitizeUserPayload(safeJsonParse(row.payload, {}), row);
+    payload.mustChangePassword = false;
+    db.prepare('UPDATE users SET password_hash=?,payload=?,updated_at=? WHERE id=?')
+      .run(hashPassword(nextPassword), JSON.stringify(payload), nowIso(), user.id);
+    audit(user.id, 'complete_initial_password', 'user', user.id);
+    return json(res, 200, { ok: true, user: publicUser(db.prepare('SELECT * FROM users WHERE id=?').get(user.id)) });
+  }
+
+  if (user.mustChangePassword) {
+    return json(res, 428, { error: 'Debes crear una nueva contraseña antes de continuar.', code: 'PASSWORD_CHANGE_REQUIRED' });
+  }
+
   if (req.method === 'GET' && pathname === '/api/bootstrap') {
     return json(res, 200, {
       user,
@@ -883,6 +916,23 @@ async function handleApi(req, res, pathname) {
     return json(res, 200, { ok: true, user: saved });
   }
 
+  if (req.method === 'POST' && pathname === '/api/user/admin/reset-password') {
+    if (user.role !== 'master') return json(res, 403, { error: 'Sólo el usuario maestro puede restablecer contraseñas.' });
+    const body = await readJson(req);
+    const targetId = String(body.id || '').trim();
+    if (!targetId) return json(res, 400, { error: 'Falta el usuario.' });
+    if (targetId === 'MASTER') return json(res, 400, { error: 'La contraseña del usuario maestro se cambia desde su propia sesión.' });
+    const row = db.prepare('SELECT * FROM users WHERE id=? AND active=1').get(targetId);
+    if (!row) return json(res, 404, { error: 'Usuario no encontrado.' });
+    const payload = sanitizeUserPayload(safeJsonParse(row.payload, {}), row);
+    payload.mustChangePassword = true;
+    db.prepare('UPDATE users SET password_hash=?,payload=?,updated_at=? WHERE id=?')
+      .run(hashPassword(INITIAL_USER_PASSWORD), JSON.stringify(payload), nowIso(), targetId);
+    db.prepare('DELETE FROM sessions WHERE user_id=?').run(targetId);
+    audit(user.id, 'reset_password', 'user', targetId, { temporaryPassword: INITIAL_USER_PASSWORD });
+    return json(res, 200, { ok: true, user: publicUser(db.prepare('SELECT * FROM users WHERE id=?').get(targetId)) });
+  }
+
   if (req.method === 'PUT' && pathname === '/api/state/users') {
     const body = await readJson(req);
     await syncUsers(user, body.users);
@@ -903,9 +953,12 @@ async function handleApi(req, res, pathname) {
     if (nextPassword.length < 8 || !/[A-Za-zÁÉÍÓÚáéíóúÑñ]/.test(nextPassword) || !/\d/.test(nextPassword)) {
       return json(res, 400, { error: 'La nueva contraseña debe tener al menos 8 caracteres, letras y números.' });
     }
-    db.prepare('UPDATE users SET password_hash=?,updated_at=? WHERE id=?').run(hashPassword(nextPassword), nowIso(), user.id);
+    if (nextPassword === INITIAL_USER_PASSWORD) return json(res, 400, { error: 'La nueva contraseña debe ser diferente de SAP123456.' });
+    const payload = sanitizeUserPayload(safeJsonParse(row.payload, {}), row);
+    payload.mustChangePassword = false;
+    db.prepare('UPDATE users SET password_hash=?,payload=?,updated_at=? WHERE id=?').run(hashPassword(nextPassword), JSON.stringify(payload), nowIso(), user.id);
     audit(user.id, 'change_password', 'user', user.id);
-    return json(res, 200, { ok: true });
+    return json(res, 200, { ok: true, user: publicUser(db.prepare('SELECT * FROM users WHERE id=?').get(user.id)) });
   }
 
   if (req.method === 'POST' && pathname === '/api/migrate') {
