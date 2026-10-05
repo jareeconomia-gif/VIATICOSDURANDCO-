@@ -481,6 +481,14 @@ label{font-weight:700;color:#334155;letter-spacing:.01em}
           Las cuentas son creadas y administradas por Genesis Leon desde Configuración → Usuarios.
         </div>
       </form>
+      <form id="initialPasswordForm" class="auth-form" style="display:none" onsubmit="completeInitialPassword(event);return false;">
+        <h2>Crea tu contraseña</h2>
+        <p>Este es tu primer acceso. Antes de continuar debes reemplazar la contraseña temporal por una contraseña personal.</p>
+        <div class="error-box" id="initialPasswordError"></div>
+        <div class="field"><label>Nueva contraseña</label><input id="initialNewPassword" type="password" required minlength="8" autocomplete="new-password" placeholder="Mínimo 8 caracteres, letras y números"></div>
+        <div class="field"><label>Confirma tu contraseña</label><input id="initialNewPasswordConfirm" type="password" required minlength="8" autocomplete="new-password" placeholder="Repite la nueva contraseña"></div>
+        <button class="btn btn-orange" type="submit" id="initialPasswordSubmit">Guardar contraseña y entrar</button>
+      </form>
     </div>
   </div>
 </section>
@@ -1223,6 +1231,36 @@ refreshCatalogSelects();
 
 function showError(id,msg){$(id).textContent=msg;$(id).classList.toggle('show',Boolean(msg))}
 let loginPortalBusy=false;
+function showInitialPasswordSetup(){
+ $('loginForm').style.display='none';
+ $('initialPasswordForm').style.display='block';
+ $('initialNewPassword').value='';
+ $('initialNewPasswordConfirm').value='';
+ showError('initialPasswordError','');
+ setTimeout(()=>$('initialNewPassword')?.focus(),50);
+}
+function showLoginForm(){
+ $('initialPasswordForm').style.display='none';
+ $('loginForm').style.display='block';
+ showError('initialPasswordError','');
+}
+async function completeInitialPassword(e){
+ if(e?.preventDefault)e.preventDefault();
+ const next=String($('initialNewPassword')?.value||'');
+ const confirmation=String($('initialNewPasswordConfirm')?.value||'');
+ if(next!==confirmation){showError('initialPasswordError','Las contraseñas no coinciden.');return false}
+ if(next.length<8||!/[A-Za-zÁÉÍÓÚáéíóúÑñ]/.test(next)||!/\d/.test(next)){showError('initialPasswordError','Usa al menos 8 caracteres, incluyendo letras y números.');return false}
+ const button=$('initialPasswordSubmit');if(button){button.disabled=true;button.textContent='Guardando…'}
+ try{
+   const data=await apiRequest('/complete-initial-password',{method:'POST',body:{newPassword:next}});
+   showLoginForm();
+   await startSession(data.user);
+   toast('Contraseña creada correctamente');
+ }catch(error){
+   showError('initialPasswordError',error.message||'No fue posible guardar la contraseña.');
+ }finally{if(button){button.disabled=false;button.textContent='Guardar contraseña y entrar'}}
+ return false
+}
 async function loginPortal(e){
  if(e?.preventDefault)e.preventDefault();
  if(loginPortalBusy)return false;
@@ -1234,6 +1272,7 @@ async function loginPortal(e){
  loginPortalBusy=true;if(button){button.disabled=true;button.textContent='Ingresando…'}
  try{
    const data=await apiRequest('/login',{method:'POST',body:{email,password}});
+   if(data.user?.mustChangePassword){showInitialPasswordSetup();return false}
    await startSession(data.user);
  }catch(error){
    showError('loginError',error.message||'No fue posible iniciar sesión.');
@@ -1243,6 +1282,7 @@ async function loginPortal(e){
  return false
 }
 $('loginForm')?.addEventListener('submit',loginPortal);
+$('initialPasswordForm')?.addEventListener('submit',completeInitialPassword);
 async function startSession(u){
  currentUser={...u};
  try{
@@ -1263,7 +1303,7 @@ async function startSession(u){
 }
 async function logout(){
  try{await apiRequest('/logout',{method:'POST'})}catch{}
- clearInterval(remoteRefreshTimer);currentUser=null;requests=[];$('appShell').style.display='none';$('authScreen').style.display='grid';$('loginPassword').value='';setSyncStatus('Desconectado','error')
+ clearInterval(remoteRefreshTimer);currentUser=null;requests=[];$('appShell').style.display='none';$('authScreen').style.display='grid';showLoginForm();$('loginPassword').value='';setSyncStatus('Desconectado','error')
 }
 function applyPermissions(){
  const isMaster=currentUser.role==='master';
@@ -2188,19 +2228,18 @@ function openUserEditor(id=''){
   <div class="field full"><label>Flujos finales</label><input value="Anticipados: Genesis Leon · Tarjeta: Luis Mondragón + aviso a Genesis Leon" readonly></div>
  </div>`}
  <div class="modal-section">Acceso</div>
- <div class="field full"><label>${editing?'Nueva contraseña (opcional)':'Contraseña inicial'}</label><input id="cfgUserPassword" type="password" placeholder="${editing?'Deja vacío para conservarla':'Mínimo 6 caracteres'}"></div>
+ <div class="notice" style="margin-bottom:10px"><strong>${editing?'Acceso administrado':'Contraseña temporal automática'}</strong><br>${editing?'La contraseña actual se conserva. Puedes restablecer el acceso desde este usuario.':'El sistema asignará la contraseña temporal estándar. En el primer acceso el usuario deberá crear su propia contraseña.'}</div>
  <div class="actions"><button class="btn btn-outline" onclick="closeModal()">Cancelar</button>${editing&&!lockedMaster?`<button class="btn btn-danger" onclick="deleteUserAccount('${safe(u.id)}')">Eliminar</button>`:''}<button class="btn btn-orange" onclick="saveUserEditor('${safe(u.id)}')">Guardar usuario</button></div>`;
  $('modal').classList.add('open');
 }
 async function saveUserEditor(id=''){
- const name=$('cfgUserName').value.trim(),mail=norm($('cfgUserEmail').value),password=$('cfgUserPassword').value;
+ const name=$('cfgUserName').value.trim(),mail=norm($('cfgUserEmail').value);
  const sapVendorId=String($('cfgUserSapVendorId')?.value||'').trim();
  const sapCompanyCode=String($('cfgUserSapCompanyCode')?.value||'').trim();
  if(!name||!mail){toast('Completa nombre y correo');return}
  if(sapVendorId.length>10){toast('Emisor SAP permite máximo 10 caracteres');return}
  if(sapCompanyCode&&!/^\d{4}$/.test(sapCompanyCode)){toast('Sociedad SAP debe tener exactamente 4 dígitos');return}
  if(users.some(u=>u.id!==id&&norm(u.email)===mail)){toast('El correo ya pertenece a otro usuario');return}
- if(!id&&password.length<6){toast('La contraseña inicial debe tener al menos 6 caracteres');return}
  const current=users.find(u=>u.id===id),lockedMaster=current?.id==='MASTER',lockedLuis=current?.id==='LUIS';
  const canApproveJefe=lockedMaster?true:Boolean($('cfgCanApproveJefe')?.checked);
  if(current&&!canApproveJefe){
@@ -2214,7 +2253,6 @@ async function saveUserEditor(id=''){
   jefeApproverId:lockedMaster?'':($('cfgUserJefeApprover')?.value||defaultJefeApproverId(id)),
   direccionApproverId:'MASTER'
  };
- if(password)data.password=password;
  const saveButton=$('modalContent')?.querySelector('.btn.btn-orange');
  if(saveButton){saveButton.disabled=true;saveButton.textContent='Guardando…'}
  try{
@@ -2224,7 +2262,7 @@ async function saveUserEditor(id=''){
   if(index>=0)users[index]=saved;else users.push(saved);
   localStorage.setItem('durandco_v2_users',JSON.stringify(users));
   if(currentUser?.id===saved.id){currentUser={...currentUser,...saved};$('sideName').textContent=saved.name;$('sideEmail').textContent=saved.email;$('topName').textContent=saved.name}
-  closeModal();renderUsers();toast(password?'Usuario y contraseña guardados en el servidor':'Usuario guardado en el servidor');
+  closeModal();renderUsers();toast(id?'Usuario guardado en el servidor':'Usuario creado con contraseña temporal');
  }catch(error){
   toast(error?.message||'No fue posible guardar el usuario');
   if(saveButton){saveButton.disabled=false;saveButton.textContent='Guardar usuario'}
@@ -3665,8 +3703,11 @@ renderProofs=function(){
 (function(){const f=$('proofStatusFilter');if(f)f.innerHTML='<option value="">Todos los estatus</option><option>Pendiente de comprobación</option><option>En captura</option><option>Pendiente de reintegro</option><option>Enviada</option><option>En revisión</option><option>Reintegro validado</option><option>Finalizada</option>'})();
 
 (async function initPortal(){
- try{const data=await apiRequest('/me');await startSession(data.user)}
- catch{$('authScreen').style.display='grid';$('appShell').style.display='none';$('loginEmail').focus()}
+ try{
+  const data=await apiRequest('/me');
+  if(data.user?.mustChangePassword){$('authScreen').style.display='grid';$('appShell').style.display='none';showInitialPasswordSetup()}
+  else await startSession(data.user)
+ }catch{$('authScreen').style.display='grid';$('appShell').style.display='none';showLoginForm();$('loginEmail').focus()}
 })();
 </script>
 </body>
