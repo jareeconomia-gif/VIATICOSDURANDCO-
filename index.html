@@ -465,11 +465,11 @@ label{font-weight:700;color:#334155;letter-spacing:.01em}
     <div class="auth-card">
       <h2>Iniciar sesión</h2>
       <p>Accede a tus viajes, anticipos, comprobaciones y aprobaciones.</p>
-      <form id="loginForm" class="auth-form active" onsubmit="return false;">
+      <form id="loginForm" class="auth-form active" onsubmit="loginPortal(event);return false;">
         <div class="error-box" id="loginError"></div>
         <div class="field"><label>Correo electrónico</label><input id="loginEmail" type="email" required autocomplete="username" placeholder="correo@durandco.com"></div>
         <div class="field"><label>Contraseña</label><input id="loginPassword" type="password" required autocomplete="current-password"></div>
-        <button class="btn btn-orange" type="submit">Continuar</button>
+        <button class="btn btn-orange" type="submit" id="loginSubmitButton">Continuar</button>
         <div class="helper" style="margin-top:13px;text-align:center">
           Las cuentas son creadas y administradas por Genesis Leon desde Configuración → Usuarios.
         </div>
@@ -1214,11 +1214,27 @@ function refreshCatalogSelects(){
 refreshCatalogSelects();
 
 function showError(id,msg){$(id).textContent=msg;$(id).classList.toggle('show',Boolean(msg))}
-$('loginForm').addEventListener('submit',async e=>{
- e.preventDefault();showError('loginError','');const button=e.submitter||$('loginForm').querySelector('button[type=submit]');if(button)button.disabled=true;
- try{const data=await apiRequest('/login',{method:'POST',body:{email:$('loginEmail').value,password:$('loginPassword').value}});await startSession(data.user)}
- catch(error){showError('loginError',error.message||'No fue posible iniciar sesión.')}finally{if(button)button.disabled=false}
-});
+let loginPortalBusy=false;
+async function loginPortal(e){
+ if(e?.preventDefault)e.preventDefault();
+ if(loginPortalBusy)return false;
+ showError('loginError','');
+ const email=String($('loginEmail')?.value||'').trim();
+ const password=String($('loginPassword')?.value||'');
+ if(!email||!password){showError('loginError','Escribe tu correo y contraseña.');return false}
+ const button=$('loginSubmitButton')||$('loginForm')?.querySelector('button[type=submit]');
+ loginPortalBusy=true;if(button){button.disabled=true;button.textContent='Ingresando…'}
+ try{
+   const data=await apiRequest('/login',{method:'POST',body:{email,password}});
+   await startSession(data.user);
+ }catch(error){
+   showError('loginError',error.message||'No fue posible iniciar sesión.');
+ }finally{
+   loginPortalBusy=false;if(button){button.disabled=false;button.textContent='Continuar'}
+ }
+ return false
+}
+$('loginForm')?.addEventListener('submit',loginPortal);
 async function startSession(u){
  currentUser={...u};
  try{
