@@ -87,42 +87,77 @@ function sapCompanyCodeForRequest(request,requesterProfile={}){
   if(requesterProfile.company==='Grupo Industrial Durandco'||request?.company==='Grupo Industrial Durandco')return'1020';
   return String(request?.proof?.companyCode||'1020').slice(0,4);
 }
+function sapTaxRate(code=''){
+  const rates={'2C':16,'2N':0,'2O':0,'2Q':8,'2Z':0,'3C':16,'3N':0,'3O':0,'3P':16,'3Q':8,'3Z':0,'6X':10};
+  return Number(rates[String(code||'').trim()]||0);
+}
+function sapTaxForAmount(amount,code=''){
+  const base=Math.round((Number(amount)||0)*100)/100;
+  const tax=Math.round(base*(sapTaxRate(code)/100)*100)/100;
+  return{base,tax,gross:Math.round((base+tax)*100)/100};
+}
 function invoiceGroupsForExactLayout(request,requesterProfile={}){
   const proof=request?.proof||{};
-  if(Array.isArray(proof.sapInvoices)&&proof.sapInvoices.length)return proof.sapInvoices;
-  const legacy=Array.isArray(proof.expenseLines)?proof.expenseLines:[];
-  if(legacy.length){
-    return legacy.map((line,index)=>({
-      invoiceId:String(index+1),
-      companyCode:sapCompanyCodeForRequest(request,requesterProfile),
-      operation:'1',
-      invoicingParty:requesterProfile.sapVendorId||proof.sapVendorId||'',
-      reference:line.invoiceNumber||line.reference||request.id,
-      documentDate:line.documentDate||proof.documentDate||proof.invoiceDate||'',
-      postingDate:line.postingDate||proof.postingDate||line.documentDate||'',
-      documentType:'KR',
-      headerText:proof.headerText||('VIATICOS '+request.id),
-      currency:line.currency||proof.currency||'MXN',
-      grossAmount:Number(line.grossAmount??line.amount??0)||0,
-      dueCalculationBaseDate:proof.baselineDate||line.postingDate||line.documentDate||'',
-      taxDeterminationDate:line.postingDate||line.documentDate||'',
-      countryReference1:'N/A',
-      taxReportingDate:line.postingDate||line.documentDate||'',
-      taxFulfillmentDate:line.postingDate||line.documentDate||'',
-      positions:[{
+  const source=Array.isArray(proof.sapInvoices)&&proof.sapInvoices.length
+    ? proof.sapInvoices
+    : (Array.isArray(proof.expenseLines)?proof.expenseLines.map((line,index)=>({
+        id:line.id||String(index+1),
+        reference:line.invoiceNumber||line.reference||('COMPROBANTE '+(index+1)),
+        documentDate:line.documentDate||proof.documentDate||proof.invoiceDate||'',
+        postingDate:line.postingDate||proof.postingDate||line.documentDate||'',
+        currency:line.currency||proof.currency||'MXN',
+        positions:[{
+          glAccount:line.account||'',
+          itemText:line.text||line.uuid||line.concept||'',
+          amount:Number(line.amount||0)||0,
+          taxCode:line.taxCode||'',
+          assignment:line.assignment||'FACTURA',
+          costCenter:line.costCenter||request.costProject||''
+        }]
+      })):[]);
+  if(!source.length)return[];
+
+  const positions=[];
+  let firstDate='',currency='MXN';
+  source.forEach((item,index)=>{
+    if(!firstDate)firstDate=item.documentDate||item.postingDate||'';
+    if(item.currency)currency=item.currency;
+    const srcPositions=Array.isArray(item.positions)&&item.positions.length?item.positions:[];
+    srcPositions.forEach((p)=>{
+      const t=sapTaxForAmount(p.amount,p.taxCode);
+      positions.push({
         companyCode:sapCompanyCodeForRequest(request,requesterProfile),
-        glAccount:line.account||'',
-        itemText:line.text||line.uuid||line.concept||'',
+        glAccount:p.glAccount||'',
+        itemText:p.itemText||item.reference||('COMPROBANTE '+(index+1)),
         debitCredit:'S',
-        amount:Number(line.netAmount??line.taxBase??line.amount??0)||0,
-        taxCode:line.taxCode||'',
-        assignment:line.assignment||line.reference||line.invoiceNumber||'',
-        costCenter:line.costCenter||request.costProject||'',
-        wbsElement:line.project||request.project||''
-      }]
-    }));
-  }
-  return[];
+        amount:t.base,
+        taxCode:p.taxCode||'',
+        assignment:p.assignment||'FACTURA',
+        costCenter:p.costCenter||request.costProject||''
+      });
+    });
+  });
+  const grossAmount=Math.round(positions.reduce((sum,p)=>sum+sapTaxForAmount(p.amount,p.taxCode).gross,0)*100)/100;
+  const postingDate=proof.postingDate||new Date().toISOString().slice(0,10);
+  return[{
+    invoiceId:'1',
+    companyCode:sapCompanyCodeForRequest(request,requesterProfile),
+    operation:'1',
+    invoicingParty:requesterProfile.sapVendorId||proof.sapVendorId||'',
+    reference:String(request.id||'VIATICOS').slice(0,16),
+    documentDate:firstDate||postingDate,
+    postingDate,
+    documentType:'KR',
+    headerText:String(proof.headerText||('VIATICOS '+request.id)).slice(0,25),
+    currency,
+    grossAmount,
+    dueCalculationBaseDate:postingDate,
+    taxDeterminationDate:postingDate,
+    countryReference1:'N/A',
+    taxReportingDate:postingDate,
+    taxFulfillmentDate:postingDate,
+    positions
+  }];
 }
 function validateExactInvoice(invoice,index,sapVendorId){
   const required=[
@@ -157,7 +192,7 @@ function buildSapLayoutBuffer(request, requesterProfile={}){
   const proof=request?.proof||{};
   const sapVendorId=String(requesterProfile.sapVendorId||proof.sapVendorId||'').trim();
   const invoices=invoiceGroupsForExactLayout(request,requesterProfile);
-  if(!invoices.length)throw Object.assign(new Error('La comprobación no contiene facturas para generar el layout SAP.'),{statusCode:400});
+  if(!invoices.length)throw Object.assign(new Error('La comprobación no contiene comprobantes para generar el layout SAP.'),{statusCode:400});
   invoices.forEach((inv,i)=>validateExactInvoice(inv,i,sapVendorId));
 
   const zip=new AdmZip(exactSapTemplateBuffer());
