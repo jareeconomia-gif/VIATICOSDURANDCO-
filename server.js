@@ -137,7 +137,12 @@ function invoiceGroupsForExactLayout(request,requesterProfile={}){
       });
     });
   });
-  const grossAmount=Math.round(positions.reduce((sum,p)=>sum+sapTaxForAmount(p.amount,p.taxCode).gross,0)*100)/100;
+  const calculatedGross=Math.round(positions.reduce((sum,p)=>sum+sapTaxForAmount(p.amount,p.taxCode).gross,0)*100)/100;
+  const targetProofAmount=Math.round((Number(proof.targetProofAmount)||0)*100)/100;
+  if(targetProofAmount>0&&Math.abs(targetProofAmount-calculatedGross)>0.01){
+    throw Object.assign(new Error(`La comprobación no cuadra: declaraste ${targetProofAmount.toFixed(2)} y las posiciones suman ${calculatedGross.toFixed(2)}.`),{statusCode:409});
+  }
+  const grossAmount=targetProofAmount>0?targetProofAmount:calculatedGross;
   const postingDate=proof.postingDate||new Date().toISOString().slice(0,10);
   return[{
     invoiceId:'1',
