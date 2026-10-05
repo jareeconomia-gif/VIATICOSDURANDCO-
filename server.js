@@ -876,7 +876,14 @@ async function handleApi(req, res, pathname) {
       .run(hashToken(token), row.id, expires, stamp, stamp);
     setSessionCookie(res, token, req);
     audit(row.id, 'login', 'session');
-    return json(res, 200, { user: publicUser(row) });
+    const loginUser = publicUser(row);
+    const bootstrap = loginUser.mustChangePassword ? null : {
+      users: listUsers(),
+      config: getSetting('config') || DEFAULT_CONFIG,
+      requests: listRequestsFor(loginUser),
+      serverTime: nowIso()
+    };
+    return json(res, 200, { user: loginUser, bootstrap });
   }
 
   if (req.method === 'POST' && pathname === '/api/logout') {
@@ -908,7 +915,17 @@ async function handleApi(req, res, pathname) {
     db.prepare('UPDATE users SET password_hash=?,payload=?,updated_at=? WHERE id=?')
       .run(hashPassword(nextPassword), JSON.stringify(payload), nowIso(), user.id);
     audit(user.id, 'complete_initial_password', 'user', user.id);
-    return json(res, 200, { ok: true, user: publicUser(db.prepare('SELECT * FROM users WHERE id=?').get(user.id)) });
+    const updatedUser = publicUser(db.prepare('SELECT * FROM users WHERE id=?').get(user.id));
+    return json(res, 200, {
+      ok: true,
+      user: updatedUser,
+      bootstrap: {
+        users: listUsers(),
+        config: getSetting('config') || DEFAULT_CONFIG,
+        requests: listRequestsFor(updatedUser),
+        serverTime: nowIso()
+      }
+    });
   }
 
   if (user.mustChangePassword) {
