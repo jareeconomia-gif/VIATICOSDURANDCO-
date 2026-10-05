@@ -439,6 +439,13 @@ label{font-weight:700;color:#334155;letter-spacing:.01em}
 .sap-v4-files{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.sap-v4-file{border:1px dashed #cbd5df;border-radius:8px;padding:10px;background:#fbfcfd}.sap-v4-file label{display:block;font-size:9px;font-weight:800;color:#526477;margin-bottom:5px}.sap-v4-file input{font-size:9px;width:100%}.sap-v4-saved{font-size:9px;color:#0875c1;text-decoration:underline;cursor:pointer;display:inline-block;margin-top:5px}
 .sap-v4-note{padding:11px 13px;border-radius:8px;background:#eef6fb;color:#275875;font-size:10px;line-height:1.45}.sap-v4-reconcile{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.sap-v4-reconcile>div{background:#fff;border:1px solid #dbe3e9;border-radius:10px;padding:12px}.sap-v4-reconcile small{display:block;color:#687b8c;font-size:9px}.sap-v4-reconcile strong{display:block;margin-top:4px;font-size:17px;color:#0c2747}
 .sap-v4-actions{position:sticky;bottom:0;background:rgba(255,255,255,.97);backdrop-filter:blur(8px);border-top:1px solid #d8e0e6;padding:13px 18px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.sap-v4-guide{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:14px 0}.sap-v4-guide>div{background:#fff;border:1px solid #dbe3e9;border-radius:10px;padding:10px 12px;display:flex;gap:9px;align-items:center}.sap-v4-guide b{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:#0b76b7;color:#fff;font-size:11px;flex:none}.sap-v4-guide span{font-size:10px;color:#41566a;line-height:1.25}
+.sap-v4-auto{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}.sap-v4-auto span{background:#f2f6f9;border:1px solid #dce5eb;border-radius:999px;padding:6px 9px;font-size:9px;color:#526777}.sap-v4-auto strong{color:#0c2747}
+.sap-v4-friendly-title{display:flex;gap:8px;align-items:center;margin-bottom:4px}.sap-v4-friendly-title b{width:23px;height:23px;border-radius:50%;background:#eaf4fa;color:#0b76b7;display:grid;place-items:center;font-size:10px}.sap-v4-friendly-title strong{font-size:13px;color:#0c2747}.sap-v4-help{font-size:10px;color:#708296;line-height:1.45;margin:0 0 12px}
+.sap-v4-match{margin-top:10px;padding:9px 11px;border-radius:8px;background:#f7fafc;border:1px solid #dce5eb;font-size:10px;color:#526777}.sap-v4-match.ok{background:#eef8f0;border-color:#c7e5ce;color:#286237}.sap-v4-match.bad{background:#fff5f6;border-color:#efc5ca;color:#7c2932}
+.sap-v4-section input[readonly]{cursor:default}
+@media(max-width:900px){.sap-v4-guide{grid-template-columns:repeat(2,1fr)}}@media(max-width:650px){.sap-v4-guide{grid-template-columns:1fr}}
+
 @media(max-width:1050px){.sap-v4-grid{grid-template-columns:repeat(2,1fr)}.sap-v4-summary,.sap-v4-reconcile{grid-template-columns:repeat(2,1fr)}}@media(max-width:650px){.sap-v4-grid,.sap-v4-summary,.sap-v4-reconcile,.sap-v4-files{grid-template-columns:1fr}.sap-v4-grid .span2{grid-column:auto}}
 </style></head>
 <body>
@@ -3448,7 +3455,7 @@ function v4SocietyForRequest(r){
  return String(r?.proof?.companyCode||'1020').slice(0,4);
 }
 function v4Today(){return new Date().toISOString().slice(0,10)}
-function v4NewPosition(r,index=0){return{id:'POS-'+Date.now()+'-'+Math.random().toString(36).slice(2,6),companyCode:v4SocietyForRequest(r),glAccount:'',itemText:'',debitCredit:'S',amount:0,taxCode:'',assignment:'FAC'+(index+1),costCenter:String(r?.costProject||'').slice(0,10)}}
+function v4NewPosition(r,index=0){return{id:'POS-'+Date.now()+'-'+Math.random().toString(36).slice(2,6),companyCode:v4SocietyForRequest(r),glAccount:'',itemText:'',debitCredit:'S',amount:0,taxCode:'',assignment:'FACTURA',costCenter:String(r?.costProject||'').slice(0,10)}}
 function v4NewInvoice(r,index=0){
  const d=v4Today(),year=new Date().getFullYear();
  return{id:'INV-'+Date.now()+'-'+Math.random().toString(36).slice(2,6),invoiceId:String(index+1),companyCode:v4SocietyForRequest(r),operation:'1',reference:'VIATICOS '+year,documentDate:d,postingDate:d,documentType:'KR',headerText:'VIATICOS '+year,currency:'MXN',grossAmount:0,dueCalculationBaseDate:d,taxDeterminationDate:d,countryReference1:'N/A',taxReportingDate:d,taxFulfillmentDate:d,positions:[v4NewPosition(r,0)],xmlName:'',xmlData:'',pdfName:'',pdfData:'',ticketName:'',ticketData:''}
@@ -3467,8 +3474,21 @@ function v4Invoices(r){
 }
 function v4TotalGross(invoices){return(invoices||[]).reduce((sum,x)=>sum+(Number(x.grossAmount)||0),0)}
 function v4TaxOptions(value=''){
- const known=['2C','2Z','3C','3N','3O','3P','3Q','3Z','6X'];
- return '<option value="">Selecciona</option>'+known.map(x=>'<option value="'+x+'" '+(x===value?'selected':'')+'>'+x+'</option>').join('')
+ const known=[
+  ['2C','IVA por acreditar 16%'],
+  ['2N','IVA EXENTO pendiente de pago'],
+  ['2O','IVA 0% pendiente de pago'],
+  ['2Q','IVA por acreditar 8%'],
+  ['2Z','No aplica'],
+  ['3C','IVA Acreditable 16%'],
+  ['3N','IVA EXENTO pagado'],
+  ['3O','IVA 0% pagado'],
+  ['3P','IVA No deducible 16% pagado'],
+  ['3Q','IVA Acreditable 8%'],
+  ['3Z','No aplica'],
+  ['6X','IVA Acreditable 10%']
+ ];
+ return '<option value="">Selecciona IVA</option>'+known.map(x=>'<option value="'+x[0]+'" '+(x[0]===value?'selected':'')+'>'+x[0]+' · '+safe(x[1])+'</option>').join('')
 }
 function v4AccountOptions(value=''){
  const catalog=[
@@ -3491,43 +3511,62 @@ function v4Attachment(inv,r,locked,type,label,accept){
  const saved=inv[type+'Name']?'<span class="sap-v4-saved" onclick="v4SavedFile(\''+safe(r.id)+'\',\''+safe(inv.id)+'\',\''+type+'\')">Ver '+safe(inv[type+'Name'])+'</span>':'';
  return'<div class="sap-v4-file"><label>'+label+'</label><input id="v4_'+type+'_'+inv.id+'" type="file" accept="'+accept+'" '+(locked?'disabled':'')+'>'+saved+'</div>'
 }
+function v4SyncAutoDates(invId){
+ const posting=$('v4_post_'+invId)?.value||'';
+ if(!posting)return;
+ ['due','taxdate','taxreport','taxfulfill'].forEach(k=>{const el=$('v4_'+k+'_'+invId);if(el)el.value=posting});
+}
+function v4InvoiceMatchHtml(inv){
+ const positions=(inv.positions||[]).reduce((s,p)=>s+(Number(p.amount)||0),0),gross=Number(inv.grossAmount)||0,diff=Math.round((gross-positions)*100)/100;
+ if(Math.abs(diff)<=0.01&&gross>0)return '<strong>✓ Factura cuadrada:</strong> las posiciones suman '+MXN.format(positions)+'.';
+ return '<strong>Revisa los importes:</strong> total factura '+MXN.format(gross)+' · posiciones '+MXN.format(positions)+' · diferencia '+MXN.format(diff)+'.'
+}
 function v4PositionRow(r,inv,pos,index,locked){
  return'<tr>'+
- '<td><input class="sap-v4-readonly" value="'+safe(v4SocietyForRequest(r))+'" readonly></td>'+
+ '<td><input class="sap-v4-readonly" value="'+safe(v4SocietyForRequest(r))+'" readonly title="Se llena automáticamente"></td>'+
  '<td><select id="v4_acc_'+pos.id+'" '+(locked?'disabled':'')+'>'+v4AccountOptions(pos.glAccount||'')+'</select></td>'+
- '<td><input id="v4_txt_'+pos.id+'" value="'+safe(pos.itemText||'')+'" maxlength="50" placeholder="Texto posición / UUID" '+(locked?'disabled':'')+'></td>'+
- '<td><input class="sap-v4-readonly" value="S" readonly></td>'+
- '<td><input id="v4_amt_'+pos.id+'" type="number" min="0" step=".01" value="'+Number(pos.amount||0).toFixed(2)+'" '+(locked?'disabled':'')+'></td>'+
+ '<td><input id="v4_txt_'+pos.id+'" value="'+safe(pos.itemText||'')+'" maxlength="50" placeholder="Ej. Comida con cliente / UUID" '+(locked?'disabled':'')+'></td>'+
+ '<td><input class="sap-v4-readonly" value="S" readonly title="Debe"></td>'+
+ '<td><input id="v4_amt_'+pos.id+'" type="number" min="0" step=".01" value="'+Number(pos.amount||0).toFixed(2)+'" placeholder="0.00" oninput="v4RefreshSummary(\''+safe(r.id)+'\')" '+(locked?'disabled':'')+'></td>'+
  '<td><select id="v4_tax_'+pos.id+'" '+(locked?'disabled':'')+'>'+v4TaxOptions(pos.taxCode||'')+'</select></td>'+
- '<td><input id="v4_asg_'+pos.id+'" value="'+safe(pos.assignment||'')+'" maxlength="18" placeholder="FAC1" '+(locked?'disabled':'')+'></td>'+
+ '<td><input id="v4_asg_'+pos.id+'" value="'+safe(pos.assignment||'FACTURA')+'" maxlength="18" placeholder="FACTURA" '+(locked?'disabled':'')+'></td>'+
  '<td><input id="v4_ceco_'+pos.id+'" value="'+safe(pos.costCenter||r.costProject||'')+'" maxlength="10" '+(locked?'disabled':'')+'></td>'+
- '<td>'+(locked?'':'<button class="icon-btn danger" onclick="v4RemovePosition(\''+safe(r.id)+'\',\''+safe(inv.id)+'\',\''+safe(pos.id)+'\')">×</button>')+'</td></tr>'
+ '<td>'+(locked?'':'<button class="icon-btn danger" title="Eliminar posición" onclick="v4RemovePosition(\''+safe(r.id)+'\',\''+safe(inv.id)+'\',\''+safe(pos.id)+'\')">×</button>')+'</td></tr>'
 }
 function v4InvoiceCard(r,inv,index,locked){
  const sapCode=currentUser?.sapVendorId||'Sin configurar';
+ const match=(inv.positions||[]).reduce((s,p)=>s+(Number(p.amount)||0),0);
+ const diff=Math.round(((Number(inv.grossAmount)||0)-match)*100)/100;
+ const matchClass=Math.abs(diff)<=0.01&&Number(inv.grossAmount)>0?'ok':'bad';
  return'<div class="sap-v4-invoice">'+
- '<div class="sap-v4-invoice-head"><h4>Factura '+(index+1)+' · ID layout '+safe(inv.invoiceId||String(index+1))+'</h4>'+(locked?'':'<button class="icon-btn danger" onclick="v4RemoveInvoice(\''+safe(r.id)+'\',\''+safe(inv.id)+'\')">×</button>')+'</div>'+
- '<div class="sap-v4-section"><div class="sap-v4-section-title">Datos cabecera · sólo los campos llenados en el ejemplo SAP</div><div class="sap-v4-grid">'+
- '<div class="field"><label>*ID de factura</label><input id="v4_id_'+inv.id+'" value="'+safe(inv.invoiceId||String(index+1))+'" '+(locked?'disabled':'')+'></div>'+
- '<div class="field"><label>*Sociedad (4)</label><input class="sap-v4-readonly" value="'+safe(v4SocietyForRequest(r))+'" readonly></div>'+
- '<div class="field"><label>*Operación</label><input class="sap-v4-readonly" value="1 · Factura" readonly></div>'+
- '<div class="field"><label>*Emisor de factura (10)</label><input class="sap-v4-readonly" value="'+safe(r.requester)+' · '+safe(sapCode)+'" readonly></div>'+
- '<div class="field"><label>Referencia (16)</label><input id="v4_ref_'+inv.id+'" maxlength="16" value="'+safe(inv.reference||'')+'" '+(locked?'disabled':'')+'></div>'+
- '<div class="field"><label>*Fecha de documento</label><input id="v4_doc_'+inv.id+'" type="date" value="'+safe(inv.documentDate||'')+'" '+(locked?'disabled':'')+'></div>'+
- '<div class="field"><label>*Fecha de contabilización</label><input id="v4_post_'+inv.id+'" type="date" value="'+safe(inv.postingDate||'')+'" '+(locked?'disabled':'')+'></div>'+
- '<div class="field"><label>*Clase de documento (2)</label><input class="sap-v4-readonly" value="KR" readonly></div>'+
- '<div class="field span2"><label>Texto de cabecera de documento (25)</label><input id="v4_head_'+inv.id+'" maxlength="25" value="'+safe(inv.headerText||'')+'" '+(locked?'disabled':'')+'></div>'+
- '<div class="field"><label>*Moneda (5)</label><select id="v4_curr_'+inv.id+'" '+(locked?'disabled':'')+'><option '+((inv.currency||'MXN')==='MXN'?'selected':'')+'>MXN</option><option '+(inv.currency==='USD'?'selected':'')+'>USD</option></select></div>'+
- '<div class="field"><label>*Importe bruto de factura</label><input id="v4_gross_'+inv.id+'" type="number" min="0" step=".01" value="'+Number(inv.grossAmount||0).toFixed(2)+'" oninput="v4RefreshSummary(\''+safe(r.id)+'\')" '+(locked?'disabled':'')+'></div>'+
- '<div class="field"><label>Fecha base vencimiento</label><input id="v4_due_'+inv.id+'" type="date" value="'+safe(inv.dueCalculationBaseDate||'')+'" '+(locked?'disabled':'')+'></div>'+
- '<div class="field"><label>Fecha para tipos impositivos</label><input id="v4_taxdate_'+inv.id+'" type="date" value="'+safe(inv.taxDeterminationDate||'')+'" '+(locked?'disabled':'')+'></div>'+
- '<div class="field span2"><label>Referencia 1 específica país/región</label><input class="sap-v4-readonly" value="N/A" readonly></div>'+
- '<div class="field"><label>Fecha declaración fiscal</label><input id="v4_taxreport_'+inv.id+'" type="date" value="'+safe(inv.taxReportingDate||'')+'" '+(locked?'disabled':'')+'></div>'+
- '<div class="field"><label>Fecha cumplimiento fiscal</label><input id="v4_taxfulfill_'+inv.id+'" type="date" value="'+safe(inv.taxFulfillmentDate||'')+'" '+(locked?'disabled':'')+'></div>'+
- '</div></div>'+
- '<div class="sap-v4-section" style="border-top:1px solid #e2e8ed"><div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><div class="sap-v4-section-title" style="margin:0">Posiciones del libro mayor · sólo los campos llenados en el ejemplo</div>'+(locked?'':'<button class="btn btn-light" onclick="v4AddPosition(\''+safe(r.id)+'\',\''+safe(inv.id)+'\')">＋ Agregar posición</button>')+'</div>'+
- '<div class="table-wrap" style="margin-top:10px"><table class="sap-v4-positions"><thead><tr><th>Sociedad</th><th>Cuenta</th><th>Texto posición</th><th>Debe/Haber</th><th>Importe</th><th>IVA</th><th>Asignación</th><th>Centro coste</th><th></th></tr></thead><tbody>'+inv.positions.map((p,i)=>v4PositionRow(r,inv,p,i,locked)).join('')+'</tbody></table></div></div>'+
- '<div class="sap-v4-section" style="border-top:1px solid #e2e8ed"><div class="sap-v4-section-title">Comprobantes de la factura · no modifican el layout SAP</div><div class="sap-v4-files">'+v4Attachment(inv,r,locked,'xml','XML','.xml')+v4Attachment(inv,r,locked,'pdf','PDF','.pdf')+v4Attachment(inv,r,locked,'ticket','Ticket / foto','.jpg,.jpeg,.png,.pdf')+'</div></div>'+
+ '<div class="sap-v4-invoice-head"><div><h4>Factura '+(index+1)+'</h4><div style="font-size:9px;color:var(--muted);margin-top:2px">Captura una factura o ticket por bloque</div></div>'+(locked?'':'<button class="icon-btn danger" title="Eliminar factura" onclick="v4RemoveInvoice(\''+safe(r.id)+'\',\''+safe(inv.id)+'\')">×</button>')+'</div>'+
+ '<div class="sap-v4-section">'+
+  '<div class="sap-v4-auto"><span>Sociedad <strong>'+safe(v4SocietyForRequest(r))+'</strong></span><span>Operación <strong>1 · Factura</strong></span><span>Emisor SAP <strong>'+safe(sapCode)+'</strong></span><span>Clase <strong>KR</strong></span><span>País/región <strong>N/A</strong></span></div>'+
+  '<div class="sap-v4-friendly-title"><b>1</b><strong>Datos de la factura</strong></div><p class="sap-v4-help">Copia estos datos directamente de la factura o ticket. Los datos técnicos de SAP de arriba se llenan solos.</p>'+
+  '<div class="sap-v4-grid">'+
+   '<div class="field"><label>Número de factura / referencia</label><input id="v4_ref_'+inv.id+'" maxlength="16" value="'+safe(inv.reference||'')+'" placeholder="Ej. FACT-45821" '+(locked?'disabled':'')+'></div>'+
+   '<div class="field"><label>Fecha de la factura</label><input id="v4_doc_'+inv.id+'" type="date" value="'+safe(inv.documentDate||'')+'" '+(locked?'disabled':'')+'></div>'+
+   '<div class="field"><label>Fecha de registro</label><input id="v4_post_'+inv.id+'" type="date" value="'+safe(inv.postingDate||'')+'" onchange="v4SyncAutoDates(\''+safe(inv.id)+'\')" '+(locked?'disabled':'')+'></div>'+
+   '<div class="field"><label>Moneda</label><select id="v4_curr_'+inv.id+'" '+(locked?'disabled':'')+'><option '+((inv.currency||'MXN')==='MXN'?'selected':'')+'>MXN</option><option '+(inv.currency==='USD'?'selected':'')+'>USD</option></select></div>'+
+   '<div class="field"><label>Total de la factura</label><input id="v4_gross_'+inv.id+'" type="number" min="0" step=".01" value="'+Number(inv.grossAmount||0).toFixed(2)+'" placeholder="0.00" oninput="v4RefreshSummary(\''+safe(r.id)+'\')" '+(locked?'disabled':'')+'></div>'+
+   '<div class="field span2"><label>Descripción general</label><input id="v4_head_'+inv.id+'" maxlength="25" value="'+safe(inv.headerText||'')+'" placeholder="Ej. VIÁTICOS OCTUBRE" '+(locked?'disabled':'')+'></div>'+
+   '<div class="field"><label>ID interno</label><input id="v4_id_'+inv.id+'" class="sap-v4-readonly" value="'+safe(inv.invoiceId||String(index+1))+'" readonly></div>'+
+   '<div class="field"><label>Fechas SAP</label><input class="sap-v4-readonly" value="Se toman de la fecha de registro" readonly></div>'+
+   '<input id="v4_due_'+inv.id+'" type="hidden" value="'+safe(inv.dueCalculationBaseDate||inv.postingDate||'')+'">'+
+   '<input id="v4_taxdate_'+inv.id+'" type="hidden" value="'+safe(inv.taxDeterminationDate||inv.postingDate||'')+'">'+
+   '<input id="v4_taxreport_'+inv.id+'" type="hidden" value="'+safe(inv.taxReportingDate||inv.postingDate||'')+'">'+
+   '<input id="v4_taxfulfill_'+inv.id+'" type="hidden" value="'+safe(inv.taxFulfillmentDate||inv.postingDate||'')+'">'+
+  '</div>'+
+ '</div>'+
+ '<div class="sap-v4-section" style="border-top:1px solid #e2e8ed">'+
+  '<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap"><div><div class="sap-v4-friendly-title"><b>2</b><strong>Distribución contable del gasto</strong></div><p class="sap-v4-help">Selecciona la cuenta, el tipo de IVA y el importe. Si una misma factura tiene conceptos diferentes, agrega otra posición.</p></div>'+(locked?'':'<button class="btn btn-light" onclick="v4AddPosition(\''+safe(r.id)+'\',\''+safe(inv.id)+'\')">＋ Agregar concepto</button>')+'</div>'+
+  '<div class="table-wrap"><table class="sap-v4-positions"><thead><tr><th>Sociedad</th><th>Cuenta SAP</th><th>Concepto / texto</th><th>D/H</th><th>Importe</th><th>IVA</th><th>Asignación</th><th>CECO</th><th></th></tr></thead><tbody>'+inv.positions.map((p,i)=>v4PositionRow(r,inv,p,i,locked)).join('')+'</tbody></table></div>'+
+  '<div id="v4_match_'+inv.id+'" class="sap-v4-match '+matchClass+'">'+v4InvoiceMatchHtml(inv)+'</div>'+
+ '</div>'+
+ '<div class="sap-v4-section" style="border-top:1px solid #e2e8ed">'+
+  '<div class="sap-v4-friendly-title"><b>3</b><strong>Adjunta tus comprobantes</strong></div><p class="sap-v4-help">Sube lo que tengas disponible. Estos archivos acompañan la comprobación y no cambian el layout SAP.</p>'+
+  '<div class="sap-v4-files">'+v4Attachment(inv,r,locked,'xml','XML de la factura','.xml')+v4Attachment(inv,r,locked,'pdf','PDF de la factura','.pdf')+v4Attachment(inv,r,locked,'ticket','Ticket / fotografía','.jpg,.jpeg,.png,.pdf')+'</div>'+
+ '</div>'+
  '</div>'
 }
 function v4CollectInvoices(r){
@@ -3558,7 +3597,10 @@ function v4Validate(r,invoices,submit=false){
 }
 function v4RefreshSummary(id){
  const r=requests.find(x=>x.id===id);if(!r)return;const inv=v4CollectInvoices(r),delivered=Number(resourceAmountForRequest(r))||0,total=v4TotalGross(inv),diff=delivered-total;
- if($('v4_total'))$('v4_total').textContent=MXN.format(total);if($('v4_diff'))$('v4_diff').textContent=MXN.format(diff);if($('v4_reconcile'))$('v4_reconcile').innerHTML=v4ReconcileHtml(r,inv)
+ if($('v4_total'))$('v4_total').textContent=MXN.format(total);
+ if($('v4_diff'))$('v4_diff').textContent=MXN.format(diff);
+ inv.forEach(x=>{const el=$('v4_match_'+x.id);if(!el)return;const pos=(x.positions||[]).reduce((s,p)=>s+(Number(p.amount)||0),0),d=Math.round(((Number(x.grossAmount)||0)-pos)*100)/100;el.className='sap-v4-match '+(Math.abs(d)<=0.01&&Number(x.grossAmount)>0?'ok':'bad');el.innerHTML=v4InvoiceMatchHtml(x)});
+ if($('v4_reconcile'))$('v4_reconcile').innerHTML=v4ReconcileHtml(r,inv)
 }
 function v4ReconcileHtml(r,invoices){
  const delivered=Number(resourceAmountForRequest(r))||0,total=v4TotalGross(invoices),employeeOwes=Math.max(0,delivered-total),companyOwes=Math.max(0,total-delivered),b=appConfig.reimbursementBank||{},p=r.proof||{};
@@ -3590,9 +3632,9 @@ renderInvoiceCapture=function(){
  const r=activeInvoiceRequestId?requests.find(x=>x.id===activeInvoiceRequestId):null;if(!r){box.innerHTML='<div class="invoice-empty"><h4>Selecciona una solicitud aprobada</h4><p>Regresa a Comprobación de gastos y elige “Realizar comprobación”.</p><button class="btn btn-orange" onclick="showView(\'proofs\')">Ir a comprobaciones</button></div>';return}
  const p=r.proof||{},locked=['Enviada','En revisión','Reintegro validado','Finalizada'].includes(p.status),invoices=v4Invoices(r),delivered=Number(resourceAmountForRequest(r))||0,total=v4TotalGross(invoices);
  box.innerHTML='<div class="sap-v4-wrap"><div class="sap-v4-top"><div style="display:flex;justify-content:space-between;gap:14px;align-items:flex-start;flex-wrap:wrap"><div><h3>Comprobación de gastos</h3><p>Llena únicamente los campos que utiliza el ejemplo oficial de <strong>Factura de proveedor</strong>. Los demás campos del layout SAP permanecen intactos y vacíos.</p></div><button class="btn btn-light" onclick="showView(\'proofs\')">← Volver</button></div><div class="sap-v4-summary"><div><small>Solicitud</small><strong>'+safe(r.id)+'</strong></div><div><small>Emisor de factura</small><strong>'+safe(r.requester)+'</strong></div><div><small>Monto entregado</small><strong>'+MXN.format(delivered)+'</strong></div><div><small>Total comprobado</small><strong id="v4_total">'+MXN.format(total)+'</strong></div></div></div>'+
- '<div class="sap-v4-body"><div class="sap-v4-note"><strong>Layout oficial:</strong> el archivo que recibe Génesis parte del mismo Excel que proporcionaste; conserva sus colores, formatos, columnas ocultas, anchos y encabezados. El formulario sólo alimenta las celdas que están llenas en el ejemplo.</div>'+
+ '<div class="sap-v4-body"><div class="sap-v4-note"><strong>Tú sólo llena la comprobación.</strong> El portal transforma estos datos al layout oficial de SAP para Génesis; no necesitas abrir ni editar Excel.</div><div class="sap-v4-guide"><div><b>1</b><span>Agrega cada factura o ticket</span></div><div><b>2</b><span>Selecciona cuenta e IVA</span></div><div><b>3</b><span>Adjunta tus comprobantes</span></div><div><b>4</b><span>Revisa el saldo y envía</span></div></div>'+
  (currentUser.sapVendorId?'':'<div class="notice error" style="margin-top:12px"><strong>Falta Emisor SAP (10).</strong> Génesis debe configurarlo en Configuración → Usuarios antes de poder enviar la comprobación.</div>')+
- '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin:16px 0 10px"><div><strong style="color:var(--navy)">Facturas / comprobantes</strong><div style="font-size:10px;color:var(--muted)">Una factura puede tener una o varias posiciones del libro mayor.</div></div>'+(locked?'':'<button class="btn btn-light" onclick="v4AddInvoice(\''+safe(r.id)+'\')">＋ Agregar factura</button>')+'</div>'+
+ '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin:16px 0 10px"><div><strong style="color:var(--navy);font-size:14px">Mis facturas y comprobantes</strong><div style="font-size:10px;color:var(--muted)">Agrega una tarjeta por cada factura o ticket que quieras comprobar.</div></div>'+(locked?'':'<button class="btn btn-orange" onclick="v4AddInvoice(\''+safe(r.id)+'\')">＋ Agregar factura</button>')+'</div>'+
  invoices.map((inv,i)=>v4InvoiceCard(r,inv,i,locked)).join('')+
  '<div class="sap-v4-invoice"><div class="sap-v4-section"><div class="sap-v4-section-title">Conciliación de la comprobación</div><div id="v4_reconcile">'+v4ReconcileHtml(r,invoices)+'</div></div></div>'+
  '<div class="sap-v4-invoice"><div class="sap-v4-section"><div class="sap-v4-section-title">Historial</div>'+proofV3History(r)+'</div></div></div>'+
