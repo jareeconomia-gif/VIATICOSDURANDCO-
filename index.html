@@ -443,6 +443,8 @@ label{font-weight:700;color:#334155;letter-spacing:.01em}
 .sap-v4-auto{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}.sap-v4-auto span{background:#f2f6f9;border:1px solid #dce5eb;border-radius:999px;padding:6px 9px;font-size:9px;color:#526777}.sap-v4-auto strong{color:#0c2747}
 .sap-v4-friendly-title{display:flex;gap:8px;align-items:center;margin-bottom:4px}.sap-v4-friendly-title b{width:23px;height:23px;border-radius:50%;background:#eaf4fa;color:#0b76b7;display:grid;place-items:center;font-size:10px}.sap-v4-friendly-title strong{font-size:13px;color:#0c2747}.sap-v4-help{font-size:10px;color:#708296;line-height:1.45;margin:0 0 12px}
 .sap-v4-match{margin-top:10px;padding:9px 11px;border-radius:8px;background:#f7fafc;border:1px solid #dce5eb;font-size:10px;color:#526777}.sap-v4-match.ok{background:#eef8f0;border-color:#c7e5ce;color:#286237}.sap-v4-match.bad{background:#fff5f6;border-color:#efc5ca;color:#7c2932}
+.sap-v4-live-balance{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;margin:12px 0 0;background:#fff;border:1px solid #dbe3e9;border-radius:10px;overflow:hidden}.sap-v4-live-balance>div{padding:11px 14px;border-left:1px solid #e3e9ee}.sap-v4-live-balance>div:first-child{border-left:0}.sap-v4-live-balance small{display:block;font-size:9px;color:#6c7f90;margin-bottom:3px}.sap-v4-live-balance strong{display:block;font-size:17px;color:#17334a}.sap-v4-live-balance .remaining strong{color:#c62828}.sap-v4-live-balance .balanced strong{color:#138a4a}.sap-v4-live-balance .over strong{color:#b35b00}.sap-v4-balance-state{display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;border-radius:999px;padding:6px 10px;background:#fff1f1;color:#b42318}.sap-v4-balance-state.ok{background:#eaf7ee;color:#18733e}.sap-v4-balance-state.over{background:#fff5e8;color:#9a5a00}
+@media(max-width:800px){.sap-v4-live-balance{grid-template-columns:repeat(2,1fr)}}
 .sap-v4-section input[readonly]{cursor:default}
 @media(max-width:900px){.sap-v4-guide{grid-template-columns:repeat(2,1fr)}}@media(max-width:650px){.sap-v4-guide{grid-template-columns:1fr}}
 
@@ -3562,10 +3564,28 @@ function v4SyncAutoDates(invId){
  if(!posting)return;
  ['due','taxdate','taxreport','taxfulfill'].forEach(k=>{const el=$('v4_'+k+'_'+invId);if(el)el.value=posting});
 }
+function v4InvoiceBalanceData(inv){
+ const gross=Math.round((Number(inv.grossAmount)||0)*100)/100;
+ const registered=Math.round((inv.positions||[]).reduce((s,p)=>s+(Number(p.amount)||0),0)*100)/100;
+ const remaining=Math.round((gross-registered)*100)/100;
+ return{gross,registered,remaining,balanced:gross>0&&Math.abs(remaining)<=0.01,over:remaining<-.01}
+}
+function v4LiveBalanceHtml(inv){
+ const b=v4InvoiceBalanceData(inv);
+ const cls=b.balanced?'balanced':b.over?'over':'remaining';
+ const state=b.balanced?'<span class="sap-v4-balance-state ok">✓ Cuadrada</span>':b.over?'<span class="sap-v4-balance-state over">Excedida</span>':'<span class="sap-v4-balance-state">Pendiente</span>';
+ return '<div class="sap-v4-live-balance">'+
+   '<div><small>Total de la factura</small><strong>'+MXN.format(b.gross)+'</strong></div>'+
+   '<div><small>Registrado en posiciones</small><strong>'+MXN.format(b.registered)+'</strong></div>'+
+   '<div class="'+cls+'"><small>Saldo por asignar</small><strong>'+MXN.format(b.remaining)+'</strong></div>'+
+   '<div><small>Estatus</small><strong style="font-size:12px">'+state+'</strong></div>'+
+ '</div>'
+}
 function v4InvoiceMatchHtml(inv){
- const positions=(inv.positions||[]).reduce((s,p)=>s+(Number(p.amount)||0),0),gross=Number(inv.grossAmount)||0,diff=Math.round((gross-positions)*100)/100;
- if(Math.abs(diff)<=0.01&&gross>0)return '<strong>✓ Factura cuadrada:</strong> las posiciones suman '+MXN.format(positions)+'.';
- return '<strong>Revisa los importes:</strong> total factura '+MXN.format(gross)+' · posiciones '+MXN.format(positions)+' · diferencia '+MXN.format(diff)+'.'
+ const b=v4InvoiceBalanceData(inv);
+ if(b.balanced)return '<strong>✓ Factura cuadrada.</strong> Ya distribuiste el total completo de '+MXN.format(b.gross)+'.';
+ if(b.over)return '<strong>Importe excedido.</strong> Registraste '+MXN.format(Math.abs(b.remaining))+' más que el total de la factura.';
+ return '<strong>Saldo pendiente:</strong> todavía faltan '+MXN.format(b.remaining)+' por registrar en las posiciones.'
 }
 function v4PositionRow(r,inv,pos,index,locked){
  return'<tr>'+
@@ -3603,6 +3623,7 @@ function v4InvoiceCard(r,inv,index,locked){
    '<input id="v4_taxreport_'+inv.id+'" type="hidden" value="'+safe(inv.taxReportingDate||inv.postingDate||'')+'">'+
    '<input id="v4_taxfulfill_'+inv.id+'" type="hidden" value="'+safe(inv.taxFulfillmentDate||inv.postingDate||'')+'">'+
   '</div>'+
+  '<div id="v4_live_'+inv.id+'">'+v4LiveBalanceHtml(inv)+'</div>'+
  '</div>'+
  '<div class="sap-v4-section" style="border-top:1px solid #e2e8ed">'+
   '<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap"><div><div class="sap-v4-friendly-title"><b>2</b><strong>Distribución contable del gasto</strong></div><p class="sap-v4-help">Selecciona la cuenta, el tipo de IVA y el importe. Si una misma factura tiene conceptos diferentes, agrega otra posición.</p></div>'+(locked?'':'<button class="btn btn-light" onclick="v4AddPosition(\''+safe(r.id)+'\',\''+safe(inv.id)+'\')">＋ Agregar concepto</button>')+'</div>'+
@@ -3635,6 +3656,7 @@ function v4Validate(r,invoices,submit=false){
   [['ID de factura',inv.invoiceId],['Referencia',inv.reference],['Fecha de documento',inv.documentDate],['Fecha de contabilización',inv.postingDate],['Texto cabecera',inv.headerText],['Moneda',inv.currency],['Importe bruto',inv.grossAmount],['Fecha base vencimiento',inv.dueCalculationBaseDate],['Fecha tipos impositivos',inv.taxDeterminationDate],['Fecha declaración fiscal',inv.taxReportingDate],['Fecha cumplimiento fiscal',inv.taxFulfillmentDate]].forEach(([label,val])=>{if(val===null||val===undefined||String(val).trim()===''||(label==='Importe bruto'&&!(Number(val)>0)))e.push('Factura '+(i+1)+': falta '+label)});
   if(!inv.positions.length)e.push('Factura '+(i+1)+': agrega al menos una posición.');
   inv.positions.forEach((p,pi)=>{[['Cuenta',p.glAccount],['Texto posición',p.itemText],['Importe',p.amount],['Indicador IVA',p.taxCode],['Asignación',p.assignment],['Centro coste',p.costCenter]].forEach(([label,val])=>{if(val===null||val===undefined||String(val).trim()===''||(label==='Importe'&&!(Number(val)>0)))e.push('Factura '+(i+1)+', posición '+(pi+1)+': falta '+label)})});
+  if(submit){const balance=v4InvoiceBalanceData(inv);if(!balance.balanced)e.push('Factura '+(i+1)+': debe quedar cuadrada. Saldo por asignar '+MXN.format(balance.remaining)+'.')}
   if(submit&&!inv.xmlData&&!inv.pdfData&&!inv.ticketData)e.push('Factura '+(i+1)+': adjunta XML, PDF o ticket.');
  });
  const delivered=Number(resourceAmountForRequest(r))||0,total=v4TotalGross(invoices),returnDue=Math.max(0,delivered-total);
@@ -3645,7 +3667,11 @@ function v4RefreshSummary(id){
  const r=requests.find(x=>x.id===id);if(!r)return;const inv=v4CollectInvoices(r),delivered=Number(resourceAmountForRequest(r))||0,total=v4TotalGross(inv),diff=delivered-total;
  if($('v4_total'))$('v4_total').textContent=MXN.format(total);
  if($('v4_diff'))$('v4_diff').textContent=MXN.format(diff);
- inv.forEach(x=>{const el=$('v4_match_'+x.id);if(!el)return;const pos=(x.positions||[]).reduce((s,p)=>s+(Number(p.amount)||0),0),d=Math.round(((Number(x.grossAmount)||0)-pos)*100)/100;el.className='sap-v4-match '+(Math.abs(d)<=0.01&&Number(x.grossAmount)>0?'ok':'bad');el.innerHTML=v4InvoiceMatchHtml(x)});
+ inv.forEach(x=>{
+  const b=v4InvoiceBalanceData(x),el=$('v4_match_'+x.id),live=$('v4_live_'+x.id);
+  if(el){el.className='sap-v4-match '+(b.balanced?'ok':'bad');el.innerHTML=v4InvoiceMatchHtml(x)}
+  if(live)live.innerHTML=v4LiveBalanceHtml(x)
+ });
  if($('v4_reconcile'))$('v4_reconcile').innerHTML=v4ReconcileHtml(r,inv)
 }
 function v4ReconcileHtml(r,invoices){
