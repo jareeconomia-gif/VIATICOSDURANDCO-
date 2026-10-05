@@ -3594,7 +3594,7 @@ function v4PositionRow(r,inv,pos,index,locked){
  '<td><input id="v4_txt_'+pos.id+'" value="'+safe(pos.itemText||'')+'" maxlength="50" placeholder="Ej. Comida con cliente / UUID" '+(locked?'disabled':'')+'></td>'+
  '<td><input class="sap-v4-readonly" value="S" readonly title="Debe"></td>'+
  '<td><input id="v4_amt_'+pos.id+'" type="number" min="0" step=".01" value="'+Number(pos.amount||0).toFixed(2)+'" placeholder="0.00" oninput="v4RefreshSummary(\''+safe(r.id)+'\')" '+(locked?'disabled':'')+'></td>'+
- '<td><select id="v4_tax_'+pos.id+'" '+(locked?'disabled':'')+'>'+v4TaxOptions(pos.taxCode||'')+'</select></td>'+
+ '<td><select id="v4_tax_'+pos.id+'" onchange="v4RefreshSummary(\''+safe(r.id)+'\')" '+(locked?'disabled':'')+'>'+v4TaxOptions(pos.taxCode||'')+'</select></td>'+
  '<td><input id="v4_asg_'+pos.id+'" value="'+safe(pos.assignment||'FACTURA')+'" maxlength="18" placeholder="FACTURA" '+(locked?'disabled':'')+'></td>'+
  '<td><input id="v4_ceco_'+pos.id+'" value="'+safe(pos.costCenter||r.costProject||'')+'" maxlength="10" '+(locked?'disabled':'')+'></td>'+
  '<td>'+(locked?'':'<button class="icon-btn danger" title="Eliminar posición" onclick="v4RemovePosition(\''+safe(r.id)+'\',\''+safe(inv.id)+'\',\''+safe(pos.id)+'\')">×</button>')+'</td></tr>'
@@ -3664,6 +3664,7 @@ function v4Validate(r,invoices,submit=false){
  return e
 }
 function v4RefreshSummary(id){
+ const toastEl=$('toast');if(toastEl&&/debe quedar cuadrada|saldo por asignar/i.test(toastEl.textContent||''))toastEl.classList.remove('show');
  const r=requests.find(x=>x.id===id);if(!r)return;const inv=v4CollectInvoices(r),delivered=Number(resourceAmountForRequest(r))||0,total=v4TotalGross(inv),diff=delivered-total;
  if($('v4_total'))$('v4_total').textContent=MXN.format(total);
  if($('v4_diff'))$('v4_diff').textContent=MXN.format(diff);
@@ -3688,8 +3689,16 @@ function v4AddPosition(id,invId){const r=requests.find(x=>x.id===id);if(!r)retur
 function v4RemovePosition(id,invId,posId){const r=requests.find(x=>x.id===id);if(!r)return;const p=r.proof||{};p.sapInvoices=v4CollectInvoices(r);const inv=p.sapInvoices.find(x=>x.id===invId);if(inv){inv.positions=inv.positions.filter(x=>x.id!==posId);if(!inv.positions.length)inv.positions=[v4NewPosition(r,0)]}r.proof=p;renderInvoiceCapture()}
 async function saveProofV4(id,submit=false){
  const r=requests.find(x=>x.id===id);if(!r)return;if(currentUser.role==='master'||norm(r.requesterEmail)!==norm(currentUser.email)){toast('Sólo el solicitante puede capturar esta comprobación');return}
- let invoices=v4CollectInvoices(r);try{invoices=await v4MergeFiles(invoices)}catch(e){toast(e.message);return}
- const errors=v4Validate(r,invoices,submit);if(errors.length){toast(errors[0]);return}
+ let invoices=v4CollectInvoices(r);
+ // Congela exactamente lo que está visible en pantalla antes de leer archivos.
+ // Así la validación y el resumen usan el mismo snapshot de importes/posiciones.
+ const liveSnapshot=invoices.map(inv=>({...inv,positions:(inv.positions||[]).map(p=>({...p}))}));
+ try{invoices=await v4MergeFiles(liveSnapshot)}catch(e){toast(e.message);return}
+ const errors=v4Validate(r,invoices,submit);
+ if(errors.length){
+   invoices.forEach(x=>{const el=$('v4_match_'+x.id),live=$('v4_live_'+x.id),b=v4InvoiceBalanceData(x);if(el){el.className='sap-v4-match '+(b.balanced?'ok':'bad');el.innerHTML=v4InvoiceMatchHtml(x)}if(live)live.innerHTML=v4LiveBalanceHtml(x)});
+   toast(errors[0]);return
+ }
  const p=r.proof||{},delivered=Number(resourceAmountForRequest(r))||0,total=v4TotalGross(invoices),employeeOwes=Math.max(0,delivered-total),companyOwes=Math.max(0,total-delivered);
  p.sapInvoices=invoices;p.actualTotal=total;p.approvedTotal=delivered;p.difference=delivered-total;p.employeeOwes=employeeOwes;p.companyOwes=companyOwes;p.sapVendorId=currentUser.sapVendorId||'';p.companyCode=v4SocietyForRequest(r);p.currency='MXN';p.lastSavedAt=new Date().toISOString();
  if(employeeOwes>0){p.returnDate=$('v4_returnDate')?.value||p.returnDate||'';p.returnAmount=Number($('v4_returnAmount')?.value||p.returnAmount||0);p.returnReference=String($('v4_returnReference')?.value||p.returnReference||'').trim();const file=$('v4_returnFile')?.files?.[0];if(file){try{const info=await readFileDataV3(file);p.returnFileName=info.name;p.returnFileData=info.data}catch(e){toast(e.message);return}}}
