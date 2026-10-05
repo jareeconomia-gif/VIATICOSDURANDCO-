@@ -840,17 +840,12 @@ function queueConfigSync(){
  if(!currentUser||currentUser.role!=='master')return;clearTimeout(configSyncTimer);setSyncStatus('Guardando configuración…','saving');const snapshot=syncClone(appConfig);
  configSyncTimer=setTimeout(()=>{syncSequence=syncSequence.then(()=>apiRequest('/state/config',{method:'PUT',body:{value:snapshot}})).then(()=>setSyncStatus('Guardado','ok')).catch(handleApiFailure)},250)
 }
-async function loadRemoteState(quiet=false){
- if(!quiet)setSyncStatus('Sincronizando…','saving');
- const data=await apiRequest('/bootstrap');
- users=Array.isArray(data.users)?data.users:[];
- appConfig=data.config&&typeof data.config==='object'?data.config:JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+function applyRemoteStateData(data,quiet=false){
+ users=Array.isArray(data?.users)?data.users:[];
+ appConfig=data?.config&&typeof data.config==='object'?data.config:JSON.parse(JSON.stringify(DEFAULT_CONFIG));
  syncConfigVars();
- requests=Array.isArray(data.requests)?data.requests:[];
+ requests=Array.isArray(data?.requests)?data.requests:[];
  refreshCatalogSelects();
- // Conserva una copia local de recuperación después de la primera carga remota.
- // La primera carga no toca localStorage para permitir migrar usuarios creados
- // antes de que existiera la base compartida.
  if(remoteStateInitialized){
   localStorage.setItem('durandco_v2_users',JSON.stringify(users));
   localStorage.setItem('durandco_v2_config',JSON.stringify(appConfig));
@@ -859,6 +854,11 @@ async function loadRemoteState(quiet=false){
  remoteStateInitialized=true;
  if(!quiet)setSyncStatus('Conectado','ok');
  return data
+}
+async function loadRemoteState(quiet=false){
+ if(!quiet)setSyncStatus('Sincronizando…','saving');
+ const data=await apiRequest('/bootstrap');
+ return applyRemoteStateData(data,quiet)
 }
 function rerenderActiveView(){
  const active=document.querySelector('.view.active');if(!active)return;
@@ -1278,12 +1278,12 @@ async function completeInitialPassword(e){
  authFlowInProgress=true;
  const next=String($('initialNewPassword')?.value||'');
  const confirmation=String($('initialNewPasswordConfirm')?.value||'');
- if(next!==confirmation){showError('initialPasswordError','Las contraseñas no coinciden.');return false}
- if(next.length<8||!/[A-Za-zÁÉÍÓÚáéíóúÑñ]/.test(next)||!/\d/.test(next)){showError('initialPasswordError','Usa al menos 8 caracteres, incluyendo letras y números.');return false}
+ if(next!==confirmation){authFlowInProgress=false;showError('initialPasswordError','Las contraseñas no coinciden.');return false}
+ if(next.length<8||!/[A-Za-zÁÉÍÓÚáéíóúÑñ]/.test(next)||!/\d/.test(next)){authFlowInProgress=false;showError('initialPasswordError','Usa al menos 8 caracteres, incluyendo letras y números.');return false}
  const button=$('initialPasswordSubmit');if(button){button.disabled=true;button.textContent='Guardando…'}
  try{
    const data=await apiRequest('/complete-initial-password',{method:'POST',body:{newPassword:next}});
-   const ok=await startSession(data.user);
+   const ok=await startSession(data.user,data.bootstrap||null);
    if(ok)toast('Contraseña creada correctamente');
  }catch(error){
    showError('initialPasswordError',error.message||'No fue posible guardar la contraseña.');
@@ -1300,14 +1300,14 @@ async function loginPortal(e){
  showError('loginError','');
  const email=String($('loginEmail')?.value||'').trim();
  const password=String($('loginPassword')?.value||'');
- if(!email||!password){showError('loginError','Escribe tu correo y contraseña.');return false}
+ if(!email||!password){authFlowInProgress=false;showError('loginError','Escribe tu correo y contraseña.');return false}
  const button=$('loginSubmitButton');
  loginPortalBusy=true;
  if(button){button.disabled=true;button.textContent='Ingresando…';button.setAttribute('aria-busy','true')}
  try{
    const data=await apiRequest('/login',{method:'POST',body:{email,password}});
    if(data.user?.mustChangePassword){showInitialPasswordSetup();return false}
-   const ok=await startSession(data.user);
+   const ok=await startSession(data.user,data.bootstrap||null);
    if(!ok)showError('loginError','Tu usuario es correcto, pero no se pudo cargar el portal. Presiona Continuar nuevamente.');
  }catch(error){
    showError('loginError',error.message||'No fue posible iniciar sesión.');
@@ -1329,10 +1329,11 @@ async function loadRemoteStateWithRetry(){
  }
  throw lastError||new Error('No fue posible cargar la información del portal.')
 }
-async function startSession(u){
+async function startSession(u,bootstrapData=null){
  currentUser={...u};
  try{
-  await loadRemoteStateWithRetry();
+  if(bootstrapData)applyRemoteStateData(bootstrapData);
+  else await loadRemoteStateWithRetry();
   $('authScreen').style.display='none';
   $('appShell').style.display='grid';
   applyPermissions();
@@ -1347,8 +1348,8 @@ async function startSession(u){
   setSyncStatus('Sin conexión','error');
   return false
  }
- // Una falla en la migración de datos antiguos nunca debe cerrar una sesión válida.
- try{await migrateLegacyData()}catch(error){console.warn('Migración pendiente',error)}
+ // La migración histórica nunca bloquea ni revierte un inicio de sesión válido.
+ setTimeout(()=>{migrateLegacyData().catch(error=>console.warn('Migración pendiente',error))},0);
  return true
 }
 async function logout(){
