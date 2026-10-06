@@ -1224,7 +1224,11 @@ function excessBreakdownHtml(items){
 function norm(v){return String(v||'').trim().toLowerCase()}
 function initials(v){return String(v||'U').split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase()}
 function groupFor(p){return POSITIONS.find(x=>x.name===p)?.group||'V'}
-function persist(){localStorage.setItem('durandco_v2_requests',JSON.stringify(requests));queueRequestsSync()}
+function persist(){
+ try{localStorage.setItem('durandco_v2_requests',JSON.stringify(requests))}
+ catch(error){console.warn('Respaldo local omitido por tamaño',error)}
+ queueRequestsSync()
+}
 function persistUsers(){localStorage.setItem('durandco_v2_users',JSON.stringify(users));if(currentUser?.role==='master')queueUsersSync();else queueOwnProfileSync()}
 function fillSelect(id,items,value){
  const element=$(id);
@@ -4037,21 +4041,75 @@ async function v4RemoveInvoice(id,invId){
 function v4AddPosition(id,invId){const r=requests.find(x=>x.id===id);if(!r)return;const p=r.proof||{};p.sapInvoices=v4CollectInvoices(r);const inv=p.sapInvoices.find(x=>x.id===invId);if(inv)inv.positions.push(v4NewPosition(r,inv.positions.length));r.proof=p;renderInvoiceCapture()}
 function v4RemovePosition(id,invId,posId){const r=requests.find(x=>x.id===id);if(!r)return;const p=r.proof||{};p.sapInvoices=v4CollectInvoices(r);const inv=p.sapInvoices.find(x=>x.id===invId);if(inv){inv.positions=inv.positions.filter(x=>x.id!==posId);if(!inv.positions.length)inv.positions=[v4NewPosition(r,0)]}r.proof=p;renderInvoiceCapture()}
 async function saveProofV4(id,submit=false){
- const r=requests.find(x=>x.id===id);if(!r)return;if(currentUser.role==='master'||norm(r.requesterEmail)!==norm(currentUser.email)){toast('Sólo el solicitante puede capturar esta comprobación');return}
+ const r=requests.find(x=>x.id===id);if(!r)return;
+ if(currentUser.role==='master'||norm(r.requesterEmail)!==norm(currentUser.email)){toast('Sólo el solicitante puede capturar esta comprobación');return}
  let invoices=v4CollectInvoices(r);
- // Congela exactamente lo que está visible en pantalla antes de leer archivos.
- // Así la validación y el resumen usan el mismo snapshot de importes/posiciones.
  const liveSnapshot=invoices.map(inv=>({...inv,positions:(inv.positions||[]).map(p=>({...p}))}));
  try{invoices=await v4MergeFiles(liveSnapshot)}catch(e){toast(e.message);return}
  const errors=v4Validate(r,invoices,submit);
  if(errors.length){toast(errors[0]);return}
+
  const p=r.proof||{},balance=v4GlobalBalanceData(r,invoices),delivered=balance.delivered,total=balance.gross,employeeOwes=balance.employeeOwes,companyOwes=balance.companyOwes;
- p.sapInvoices=invoices;p.targetProofAmount=v4TargetAmount(r);p.actualBase=balance.base;p.actualTax=balance.tax;p.actualTotal=total;p.approvedTotal=delivered;p.difference=balance.difference;p.employeeOwes=employeeOwes;p.companyOwes=companyOwes;p.sapVendorId=currentUser.sapVendorId||'';p.companyCode=v4SocietyForRequest(r);p.currency='MXN';p.lastSavedAt=new Date().toISOString();
- if(employeeOwes>0){p.returnDate=$('v4_returnDate')?.value||p.returnDate||'';p.returnAmount=Number($('v4_returnAmount')?.value||p.returnAmount||0);p.returnReference=String($('v4_returnReference')?.value||p.returnReference||'').trim();const file=$('v4_returnFile')?.files?.[0];if(file){try{const info=await readFileDataV3(file);p.returnFileName=info.name;p.returnFileData=info.data}catch(e){toast(e.message);return}}}
- // Compatibilidad para métricas existentes.
- p.expenseLines=invoices.flatMap(inv=>inv.positions.map(pos=>{const t=v4TaxForAmount(pos.amount,pos.taxCode);return{id:pos.id,documentDate:inv.documentDate,postingDate:inv.postingDate,invoiceNumber:inv.reference,vendor:r.requester,concept:pos.itemText,amount:t.base,taxAmount:t.tax,grossAmount:t.gross,currency:inv.currency,taxCode:pos.taxCode,costCenter:pos.costCenter,account:pos.glAccount,reference:pos.assignment,text:pos.itemText}}));
- if(submit){if(!confirm('¿Enviar la comprobación a Génesis? El sistema dejará listo el layout oficial de SAP.'))return;p.status='Enviada';p.submittedAt=new Date().toISOString();p.submittedBy=currentUser.name;p.layoutGeneratedAt=p.submittedAt;r.history=r.history||[];r.history.push({stage:'Comprobación enviada',by:currentUser.name,date:p.submittedAt,comment:'Total comprobado '+MXN.format(total)});r.history.push({stage:'Layout SAP listo',by:'Sistema',date:p.submittedAt,comment:'Plantilla oficial Factura de proveedor_ES'})}else{p.status=employeeOwes>0?'Pendiente de reintegro':'En captura'}
- r.proof=p;persist();if(submit){activeInvoiceRequestId='';showView('proofs');renderProofs();renderMy();renderDashboard();toast('Comprobación enviada a Génesis con layout SAP listo.')}else{renderInvoiceCapture();toast('Borrador guardado')}
+ p.sapInvoices=invoices;
+ p.targetProofAmount=v4TargetAmount(r);
+ p.actualBase=balance.base;
+ p.actualTax=balance.tax;
+ p.actualTotal=total;
+ p.approvedTotal=delivered;
+ p.difference=balance.difference;
+ p.employeeOwes=employeeOwes;
+ p.companyOwes=companyOwes;
+ p.sapVendorId=currentUser.sapVendorId||'';
+ p.companyCode=v4SocietyForRequest(r);
+ p.currency='MXN';
+ p.lastSavedAt=new Date().toISOString();
+
+ if(employeeOwes>0){
+  p.returnDate=$('v4_returnDate')?.value||p.returnDate||'';
+  p.returnAmount=Number($('v4_returnAmount')?.value||p.returnAmount||0);
+  p.returnReference=String($('v4_returnReference')?.value||p.returnReference||'').trim();
+  const file=$('v4_returnFile')?.files?.[0];
+  if(file){
+   try{const info=await readFileDataV3(file);p.returnFileName=info.name;p.returnFileData=info.data}
+   catch(e){toast(e.message);return}
+  }
+ }
+
+ p.expenseLines=invoices.flatMap(inv=>inv.positions.map(pos=>{
+  const t=v4TaxForAmount(pos.amount,pos.taxCode);
+  return{id:pos.id,documentDate:inv.documentDate,postingDate:inv.postingDate,invoiceNumber:inv.reference,vendor:r.requester,concept:pos.itemText,amount:t.base,taxAmount:t.tax,grossAmount:t.gross,currency:inv.currency,taxCode:pos.taxCode,costCenter:pos.costCenter,account:pos.glAccount,reference:pos.assignment,text:pos.itemText}
+ }));
+
+ if(!submit){
+  p.status=employeeOwes>0?'Pendiente de reintegro':'En captura';
+  r.proof=p;
+  persist();
+  renderInvoiceCapture();
+  toast('Borrador guardado');
+  return
+ }
+
+ if(!confirm('¿Enviar la comprobación a Génesis? El sistema dejará listo el layout oficial de SAP.'))return;
+
+ const button=$('v4_submit_btn');
+ if(button){button.disabled=true;button.textContent='Enviando…'}
+ try{
+  const result=await apiRequest('/proof/submit',{method:'POST',body:{requestId:r.id,proof:p}});
+  if(!result?.request)throw new Error('El servidor no confirmó el envío.');
+  const pos=requests.findIndex(x=>x.id===r.id);
+  if(pos>=0)requests[pos]=result.request;
+  try{localStorage.setItem('durandco_v2_requests',JSON.stringify(requests))}catch{}
+  activeInvoiceRequestId='';
+  showView('proofs');
+  renderProofs();
+  renderMy();
+  renderDashboard();
+  toast('Comprobación enviada a Génesis correctamente.');
+ }catch(error){
+  console.error('Error al enviar comprobación',error);
+  toast(error?.message||'No se pudo enviar la comprobación.');
+  if(button){button.disabled=false;button.textContent='Enviar comprobación a Génesis'}
+ }
 }
 renderInvoiceCapture=function(){
  const box=$('invoiceCaptureContent');if(!box)return;
