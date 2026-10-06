@@ -524,7 +524,7 @@ label{font-weight:700;color:#334155;letter-spacing:.01em}
         <div class="error-box" id="loginError"></div>
         <div class="field"><label>Correo electrónico</label><input id="loginEmail" type="email" required autocomplete="username" placeholder="correo@durandco.com"></div>
         <div class="field"><label>Contraseña</label><input id="loginPassword" type="password" required autocomplete="current-password"></div>
-        <button class="btn btn-orange" type="button" id="loginSubmitButton" onclick="loginPortal(event)" disabled aria-busy="true">Cargando acceso…</button>
+        <button class="btn btn-orange" type="button" id="loginSubmitButton" onclick="loginPortal(event)">Continuar</button>
         <div class="helper" style="margin-top:13px;text-align:center">
           Las cuentas son creadas y administradas por Genesis Leon desde Configuración → Usuarios.
         </div>
@@ -538,6 +538,25 @@ label{font-weight:700;color:#334155;letter-spacing:.01em}
     </div>
   </div>
 </section>
+<script id="loginEarlyGuard">
+(function(){
+  function resetLoginButton(){
+    var b=document.getElementById('loginSubmitButton');
+    if(!b)return;
+    if(b.textContent==='Cargando acceso…'){b.textContent='Continuar';}
+    b.disabled=false;
+    b.removeAttribute('aria-busy');
+  }
+  resetLoginButton();
+  window.addEventListener('pageshow',resetLoginButton);
+  window.addEventListener('error',function(){
+    resetLoginButton();
+  });
+  window.addEventListener('unhandledrejection',function(){
+    resetLoginButton();
+  });
+})();
+</script>
 
 <div class="app" id="appShell" style="display:none">
 <aside class="sidebar" id="sidebar">
