@@ -1002,6 +1002,46 @@ async function handleApi(req, res, pathname) {
     return json(res, 200, { ok: true, requests: listRequestsFor(user) });
   }
 
+  if (req.method === 'POST' && pathname === '/api/proof/submit') {
+    const body = await readJson(req);
+    const requestId = String(body.requestId || '').trim();
+    if (!requestId) return json(res, 400, { error: 'Falta el folio de la solicitud.' });
+    const row = db.prepare('SELECT * FROM requests WHERE id=?').get(requestId);
+    if (!row) return json(res, 404, { error: 'Solicitud no encontrada.' });
+    const request = requestRowToPayload(row);
+    if (normalize(request.requesterEmail) !== normalize(user.email)) {
+      return json(res, 403, { error: 'Sólo el solicitante puede enviar esta comprobación.' });
+    }
+    const incomingProof = cleanObject(body.proof || {});
+    if (!Array.isArray(incomingProof.sapInvoices) || !incomingProof.sapInvoices.length) {
+      return json(res, 400, { error: 'La comprobación no contiene comprobantes de gasto.' });
+    }
+    const stamp = nowIso();
+    incomingProof.status = 'Enviada';
+    incomingProof.submittedAt = stamp;
+    incomingProof.submittedBy = user.name;
+    incomingProof.layoutGeneratedAt = stamp;
+    incomingProof.lastSavedAt = stamp;
+    request.proof = incomingProof;
+    request.history = Array.isArray(request.history) ? request.history : [];
+    request.history.push({
+      stage: 'Comprobación enviada',
+      by: user.name,
+      date: stamp,
+      comment: 'Total comprobado ' + Number(incomingProof.actualTotal || 0).toFixed(2)
+    });
+    request.history.push({
+      stage: 'Layout SAP listo',
+      by: 'Sistema',
+      date: stamp,
+      comment: 'Plantilla oficial Factura de proveedor_ES'
+    });
+    upsertRequest(normalizeRequest(request), user.id);
+    audit(user.id, 'submit', 'proof', requestId, { total: Number(incomingProof.actualTotal || 0), rows: incomingProof.sapInvoices.length });
+    const saved = requestRowToPayload(db.prepare('SELECT * FROM requests WHERE id=?').get(requestId));
+    return json(res, 200, { ok: true, request: saved });
+  }
+
   if (req.method === 'POST' && pathname === '/api/change-password') {
     const body = await readJson(req);
     const row = db.prepare('SELECT * FROM users WHERE id=? AND active=1').get(user.id);
