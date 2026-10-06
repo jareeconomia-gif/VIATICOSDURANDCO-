@@ -469,7 +469,33 @@ label{font-weight:700;color:#334155;letter-spacing:.01em}
 @media(max-width:900px){.sap-v4-guide{grid-template-columns:repeat(2,1fr)}}@media(max-width:650px){.sap-v4-guide{grid-template-columns:1fr}}
 
 @media(max-width:1050px){.sap-v4-grid{grid-template-columns:repeat(2,1fr)}.sap-v4-summary,.sap-v4-reconcile{grid-template-columns:repeat(2,1fr)}}@media(max-width:650px){.sap-v4-grid,.sap-v4-summary,.sap-v4-reconcile,.sap-v4-files{grid-template-columns:1fr}.sap-v4-grid .span2{grid-column:auto}}
-</style></head>
+</style><style id="hero-contrast-fix">
+/* Contraste de encabezados oscuros */
+.hero{
+  color:#fff !important;
+}
+.hero h3,
+.hero #proofHeroTitle,
+.hero #approvalHeroTitle{
+  color:#fff !important;
+  opacity:1 !important;
+  text-shadow:0 1px 2px rgba(0,0,0,.18);
+}
+.hero p,
+.hero #proofHeroText,
+.hero #approvalHeroText{
+  color:#dbe7f3 !important;
+  opacity:1 !important;
+}
+.hero .hero-badge,
+.hero #proofHeroBadge,
+.hero #approvalHeroBadge{
+  color:#fff !important;
+  background:rgba(255,255,255,.14) !important;
+  border-color:rgba(255,255,255,.26) !important;
+}
+</style>
+</head>
 <body>
 
 <section class="auth" id="authScreen">
