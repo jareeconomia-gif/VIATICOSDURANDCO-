@@ -524,7 +524,7 @@ label{font-weight:700;color:#334155;letter-spacing:.01em}
         <div class="error-box" id="loginError"></div>
         <div class="field"><label>Correo electrónico</label><input id="loginEmail" type="email" required autocomplete="username" placeholder="correo@durandco.com"></div>
         <div class="field"><label>Contraseña</label><input id="loginPassword" type="password" required autocomplete="current-password"></div>
-        <button class="btn btn-orange" type="button" id="loginSubmitButton" onclick="loginPortal(event)">Continuar</button>
+        <button class="btn btn-orange" type="button" id="loginSubmitButton">Continuar</button>
         <div class="helper" style="margin-top:13px;text-align:center">
           Las cuentas son creadas y administradas por Genesis Leon desde Configuración → Usuarios.
         </div>
@@ -540,21 +540,69 @@ label{font-weight:700;color:#334155;letter-spacing:.01em}
 </section>
 <script id="loginEarlyGuard">
 (function(){
-  function resetLoginButton(){
-    var b=document.getElementById('loginSubmitButton');
+  var busy=false;
+  function el(id){return document.getElementById(id)}
+  function showError(message){
+    var box=el('loginError');
+    if(!box)return;
+    box.textContent=message||'';
+    box.classList.toggle('show',Boolean(message));
+  }
+  function reset(){
+    busy=false;
+    var b=el('loginSubmitButton');
     if(!b)return;
-    if(b.textContent==='Cargando acceso…'){b.textContent='Continuar';}
     b.disabled=false;
+    b.textContent='Continuar';
     b.removeAttribute('aria-busy');
   }
-  resetLoginButton();
-  window.addEventListener('pageshow',resetLoginButton);
-  window.addEventListener('error',function(){
-    resetLoginButton();
+  async function login(){
+    if(busy)return;
+    var email=String(el('loginEmail')?.value||'').trim();
+    var password=String(el('loginPassword')?.value||'');
+    if(!email||!password){showError('Escribe tu correo y contraseña.');return}
+    busy=true;showError('');
+    var b=el('loginSubmitButton');
+    if(b){b.disabled=true;b.textContent='Ingresando…';b.setAttribute('aria-busy','true')}
+    var controller=new AbortController();
+    var timer=setTimeout(function(){controller.abort()},20000);
+    try{
+      var response=await fetch('/api/login',{
+        method:'POST',
+        credentials:'same-origin',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({email:email,password:password}),
+        signal:controller.signal
+      });
+      var data=null;
+      try{data=await response.json()}catch(_){}
+      if(!response.ok)throw new Error((data&&data.error)||('Error '+response.status));
+      // El servidor ya dejó creada la sesión. Recargamos la aplicación desde cero
+      // para evitar cualquier estado JavaScript viejo o incompleto en la pantalla de acceso.
+      window.location.replace('/?session='+Date.now());
+      return;
+    }catch(error){
+      if(error&&error.name==='AbortError')showError('El servidor tardó demasiado en responder. Intenta nuevamente.');
+      else showError((error&&error.message)||'No fue posible iniciar sesión.');
+      reset();
+    }finally{clearTimeout(timer)}
+  }
+  var button=el('loginSubmitButton');
+  if(button)button.addEventListener('click',login);
+  ['loginEmail','loginPassword'].forEach(function(id){
+    var input=el(id);
+    if(input)input.addEventListener('keydown',function(event){
+      if(event.key==='Enter'){
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        login();
+      }
+    },true);
   });
-  window.addEventListener('unhandledrejection',function(){
-    resetLoginButton();
-  });
+  reset();
+  window.addEventListener('pageshow',reset);
+  window.addEventListener('error',reset);
+  window.addEventListener('unhandledrejection',reset);
 })();
 </script>
 
