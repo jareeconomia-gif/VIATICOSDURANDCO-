@@ -3751,17 +3751,45 @@ function v5TotalsHtml(invoices){
 }
 function v5AttachmentCell(inv,r,locked,index){
  const one=(type,label,accept)=>{
-  const saved=inv[type+'Name']?'<span class="sap-v4-saved" onclick="v4SavedFile(\''+safe(r.id)+'\',\''+safe(inv.id)+'\',\''+type+'\')">Ver '+safe(inv[type+'Name'])+'</span>':'';
-  return '<div class="sap-v4-file"><label>'+label+'</label><input class="v5-file v5-file-'+type+'" data-file-type="'+type+'" type="file" accept="'+accept+'" onchange="v6RefreshAssistant(\''+safe(r.id)+'\')" '+(locked?'disabled':'')+'>'+saved+'</div>'
+  const saved=inv[type+'Name']?'<span class="sap-v4-saved" data-v5-file-state="'+type+'" onclick="v4SavedFile(\''+safe(r.id)+'\',\''+safe(inv.id)+'\',\''+type+'\')">✓ '+safe(inv[type+'Name'])+'</span>':'<span class="sap-v4-saved" data-v5-file-state="'+type+'" style="display:none"></span>';
+  return '<div class="sap-v4-file"><label>'+label+'</label><input class="v5-file v5-file-'+type+'" data-file-type="'+type+'" data-invoice-id="'+safe(inv.id)+'" type="file" accept="'+accept+'" onchange="v5HandleAttachment(\''+safe(r.id)+'\',\''+safe(inv.id)+'\',\''+type+'\',this)" '+(locked?'disabled':'')+'>'+saved+'</div>'
  };
  return'<details class="sap-v5-upload"><summary>📎 Adjuntar</summary><div class="sap-v5-upload-box">'+
    one('xml','XML','.xml')+one('pdf','PDF','.pdf')+one('ticket','Ticket / foto','.jpg,.jpeg,.png,.pdf')+
  '</div></details>'
 }
+async function v5HandleAttachment(requestId,invoiceId,type,input){
+ const r=requests.find(x=>x.id===requestId);if(!r||!input)return;
+ const file=input.files?.[0];if(!file){v6RefreshAssistant(requestId);return}
+ const state=input.closest('.sap-v4-file')?.querySelector('[data-v5-file-state="'+type+'"]');
+ if(state){state.style.display='inline-block';state.textContent='Procesando '+file.name+'…';state.onclick=null}
+ try{
+  const info=await readFileDataV3(file);
+  const current=v4CollectInvoices(r);
+  const inv=current.find(x=>String(x.id)===String(invoiceId));
+  if(!inv)throw new Error('No se encontró el comprobante seleccionado.');
+  inv[type+'Name']=info.name;
+  inv[type+'Data']=info.data;
+  r.proof=r.proof||{};
+  r.proof.sapInvoices=current;
+  r.proof.lastSavedAt=new Date().toISOString();
+  if(state){
+   state.textContent='✓ '+info.name;
+   state.style.display='inline-block';
+   state.onclick=()=>v4SavedFile(requestId,invoiceId,type);
+  }
+  v6RefreshAssistant(requestId);
+ }catch(error){
+  input.value='';
+  if(state){state.style.display='none';state.textContent='';state.onclick=null}
+  toast(error?.message||'No fue posible cargar el archivo');
+  v6RefreshAssistant(requestId)
+ }
+}
 function v6HasAttachment(inv,index=-1){
  if(inv?.xmlData||inv?.pdfData||inv?.ticketData)return true;
  const rows=[...document.querySelectorAll('#invoiceCaptureContent tr[data-v5-row]')];
- const row=index>=0?rows[index]:rows.find(x=>x.getAttribute('data-v5-row')===String(inv?.id||''));
+ const row=rows.find(x=>x.getAttribute('data-v5-row')===String(inv?.id||''))||(index>=0?rows[index]:null);
  if(!row)return false;
  return [...row.querySelectorAll('input.v5-file[type="file"]')].some(el=>Boolean(el.files?.length))
 }
@@ -3813,7 +3841,12 @@ function v6AssistantHtml(r,invoices,locked=false){
 function v6RefreshAssistant(id){
  const r=requests.find(x=>x.id===id),box=document.getElementById('v6_assistant');if(!r||!box)return;
  const inv=v4CollectInvoices(r),locked=['Enviada','En revisión','Reintegro validado','Finalizada'].includes(r.proof?.status);
- box.innerHTML=v6AssistantHtml(r,inv,locked)
+ box.innerHTML=v6AssistantHtml(r,inv,locked);
+ const toastEl=$('toast');
+ if(toastEl&&/adjunta.*comprobante|archivo.*comprobante/i.test(toastEl.textContent||'')){
+  const state=v6AssistantState(r,inv);
+  if(state.action!=='attach')toastEl.classList.remove('show')
+ }
 }
 function v5ComprobanteRow(r,inv,index,locked){
  const pos=(inv.positions&&inv.positions[0])||v4NewPosition(r,0),t=v4TaxForAmount(pos.amount,pos.taxCode);
@@ -3911,7 +3944,8 @@ function v4CollectInvoices(r){
 async function v4MergeFiles(invoices){
  const rows=[...document.querySelectorAll('#invoiceCaptureContent tr[data-v5-row]')];
  for(let i=0;i<invoices.length;i++){
-  const inv=invoices[i],row=rows[i];
+  const inv=invoices[i];
+  const row=rows.find(x=>x.getAttribute('data-v5-row')===String(inv.id))||rows[i];
   for(const type of ['xml','pdf','ticket']){
    const rowInput=row?.querySelector('.v5-file-'+type);
    const legacyInput=$('v4_'+type+'_'+inv.id);
