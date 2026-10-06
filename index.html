@@ -3766,17 +3766,23 @@ async function v5HandleAttachment(requestId,invoiceId,type,input){
  try{
   const info=await readFileDataV3(file);
   const current=v4CollectInvoices(r);
-  const inv=current.find(x=>String(x.id)===String(invoiceId));
+  let inv=current.find(x=>String(x.id)===String(invoiceId));
+  if(!inv){
+    const row=input.closest('tr[data-v5-row]');
+    const rowIndex=[...document.querySelectorAll('#invoiceCaptureContent tr[data-v5-row]')].indexOf(row);
+    inv=rowIndex>=0?current[rowIndex]:null;
+  }
   if(!inv)throw new Error('No se encontró el comprobante seleccionado.');
   inv[type+'Name']=info.name;
   inv[type+'Data']=info.data;
   r.proof=r.proof||{};
   r.proof.sapInvoices=current;
   r.proof.lastSavedAt=new Date().toISOString();
+  persist();
   if(state){
    state.textContent='✓ '+info.name;
    state.style.display='inline-block';
-   state.onclick=()=>v4SavedFile(requestId,invoiceId,type);
+   state.onclick=()=>v4SavedFile(requestId,inv.id,type);
   }
   v6RefreshAssistant(requestId);
  }catch(error){
@@ -3786,12 +3792,20 @@ async function v5HandleAttachment(requestId,invoiceId,type,input){
   v6RefreshAssistant(requestId)
  }
 }
-function v6HasAttachment(inv,index=-1){
- if(inv?.xmlData||inv?.pdfData||inv?.ticketData)return true;
+function v5AttachmentInput(inv,index,type){
+ const id=String(inv?.id||'');
+ if(id){
+  try{
+   const exact=document.querySelector('#invoiceCaptureContent input.v5-file-'+type+'[data-invoice-id="'+CSS.escape(id)+'"]');
+   if(exact)return exact
+  }catch{}
+ }
  const rows=[...document.querySelectorAll('#invoiceCaptureContent tr[data-v5-row]')];
- const row=rows.find(x=>x.getAttribute('data-v5-row')===String(inv?.id||''))||(index>=0?rows[index]:null);
- if(!row)return false;
- return [...row.querySelectorAll('input.v5-file[type="file"]')].some(el=>Boolean(el.files?.length))
+ return rows[index]?.querySelector('input.v5-file-'+type)||null
+}
+function v6HasAttachment(inv,index=-1){
+ if(inv?.xmlData||inv?.pdfData||inv?.ticketData||inv?.xmlName||inv?.pdfName||inv?.ticketName)return true;
+ return ['xml','pdf','ticket'].some(type=>Boolean(v5AttachmentInput(inv,index,type)?.files?.length))
 }
 function v6AssistantState(r,invoices){
  const target=v4TargetBalanceData(r,invoices);
@@ -3942,17 +3956,14 @@ function v4CollectInvoices(r){
  })
 }
 async function v4MergeFiles(invoices){
- const rows=[...document.querySelectorAll('#invoiceCaptureContent tr[data-v5-row]')];
  for(let i=0;i<invoices.length;i++){
   const inv=invoices[i];
-  const row=rows.find(x=>x.getAttribute('data-v5-row')===String(inv.id))||rows[i];
   for(const type of ['xml','pdf','ticket']){
-   const rowInput=row?.querySelector('.v5-file-'+type);
-   const legacyInput=$('v4_'+type+'_'+inv.id);
-   const file=rowInput?.files?.[0]||legacyInput?.files?.[0];
+   const file=v5AttachmentInput(inv,i,type)?.files?.[0];
    if(!file)continue;
    const info=await readFileDataV3(file);
-   inv[type+'Name']=info.name;inv[type+'Data']=info.data
+   inv[type+'Name']=info.name;
+   inv[type+'Data']=info.data
   }
  }
  return invoices
@@ -3966,7 +3977,7 @@ function v4Validate(r,invoices,submit=false){
   if(!p.itemText)e.push('Posición '+(i+1)+': falta el concepto.');
   if(!(Number(p.amount)>0))e.push('Posición '+(i+1)+': el importe debe ser mayor a cero.');
   if(!p.taxCode)e.push('Posición '+(i+1)+': selecciona el IVA.');
-  if(submit&&!inv.xmlData&&!inv.pdfData&&!inv.ticketData)e.push('Posición '+(i+1)+': adjunta XML, PDF o ticket/fotografía.');
+  if(submit&&!v6HasAttachment(inv,i))e.push('Posición '+(i+1)+': adjunta XML, PDF o ticket/fotografía.');
  });
  const targetBalance=v4TargetBalanceData(r,invoices);
  if(submit&&!(targetBalance.target>0))e.push('Indica primero cuánto vas a comprobar.');
