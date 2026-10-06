@@ -831,7 +831,7 @@ function serveStatic(req, res, pathname) {
   securityHeaders(res);
   res.statusCode = 200;
   res.setHeader('Content-Type', contentType(filePath));
-  res.setHeader('Cache-Control', path.basename(filePath) === 'index.html' ? 'no-cache' : 'public, max-age=3600');
+  res.setHeader('Cache-Control', path.basename(filePath) === 'index.html' ? 'no-store, no-cache, must-revalidate' : 'public, max-age=3600');
   fs.createReadStream(filePath).pipe(res);
 }
 
