@@ -494,15 +494,15 @@ label{font-weight:700;color:#334155;letter-spacing:.01em}
     <div class="auth-card">
       <h2 id="authTitle">Iniciar sesión</h2>
       <p id="authSubtitle">Accede a tus viajes, anticipos, comprobaciones y aprobaciones.</p>
-      <div id="loginForm" class="auth-form active">
+      <form id="loginForm" class="auth-form active" novalidate>
         <div class="error-box" id="loginError"></div>
         <div class="field"><label>Correo electrónico</label><input id="loginEmail" type="email" required autocomplete="username" placeholder="correo@durandco.com"></div>
         <div class="field"><label>Contraseña</label><input id="loginPassword" type="password" required autocomplete="current-password"></div>
-        <button class="btn btn-orange" type="button" id="loginSubmitButton" onclick="loginPortal(event)">Continuar</button>
+        <button class="btn btn-orange" type="submit" id="loginSubmitButton">Continuar</button>
         <div class="helper" style="margin-top:13px;text-align:center">
           Las cuentas son creadas y administradas por Genesis Leon desde Configuración → Usuarios.
         </div>
-      </div>
+      </form>
       <form id="initialPasswordForm" class="auth-form" style="display:none">
         <div class="error-box" id="initialPasswordError"></div>
         <div class="field"><label>Nueva contraseña</label><input id="initialNewPassword" type="password" required minlength="8" autocomplete="new-password" placeholder="Mínimo 8 caracteres, letras y números"></div>
@@ -1276,6 +1276,10 @@ function showInitialPasswordSetup(){
  setTimeout(()=>$('initialNewPassword')?.focus(),50);
 }
 function showLoginForm(){
+ loginPortalBusy=false;
+ authFlowInProgress=false;
+ const loginButton=$('loginSubmitButton');
+ if(loginButton){loginButton.disabled=false;loginButton.textContent='Continuar';loginButton.removeAttribute('aria-busy')}
  $('authTitle').textContent='Iniciar sesión';
  $('authSubtitle').textContent='Accede a tus viajes, anticipos, comprobaciones y aprobaciones.';
  $('initialPasswordForm').classList.remove('active');
@@ -1306,16 +1310,23 @@ async function completeInitialPassword(e){
 }
 async function loginPortal(e){
  e?.preventDefault();
- if(loginPortalBusy)return false;
+ const button=$('loginSubmitButton');
+ if(loginPortalBusy){
+   // Evita que un intento interrumpido deje el botón inutilizable.
+   if(button?.disabled){button.disabled=false;button.textContent='Continuar';button.removeAttribute('aria-busy')}
+   loginPortalBusy=false;
+ }
  authFlowInProgress=true;
  showError('loginError','');
  const email=String($('loginEmail')?.value||'').trim();
  const password=String($('loginPassword')?.value||'');
  if(!email||!password){authFlowInProgress=false;showError('loginError','Escribe tu correo y contraseña.');return false}
- const button=$('loginSubmitButton');
  loginPortalBusy=true;
  if(button){button.disabled=true;button.textContent='Ingresando…';button.setAttribute('aria-busy','true')}
  try{
+   if(button)button.textContent='Conectando…';
+   await apiRequest('/health',{method:'GET'});
+   if(button)button.textContent='Ingresando…';
    const data=await apiRequest('/login',{method:'POST',body:{email,password}});
    if(data.user?.mustChangePassword){showInitialPasswordSetup();return false}
    const ok=await startSession(data.user,data.bootstrap||null);
@@ -1329,16 +1340,8 @@ async function loginPortal(e){
  }
  return false
 }
+$('loginForm')?.addEventListener('submit',loginPortal);
 $('initialPasswordForm')?.addEventListener('submit',completeInitialPassword);
-['loginEmail','loginPassword'].forEach(id=>{
- const el=$(id);
- el?.addEventListener('keydown',event=>{
-  if(event.key==='Enter'){
-   event.preventDefault();
-   loginPortal(event);
-  }
- });
-});
 
 async function loadRemoteStateWithRetry(){
  let lastError=null;
