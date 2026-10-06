@@ -3321,7 +3321,7 @@ function proofV3LineHtml(r,line,index,locked){
  return'<tr>'+
   '<td>'+(index+1)+'</td>'+
   '<td><input id="pv3_doc_'+line.id+'" type="date" value="'+safe(line.documentDate||'')+'" '+(locked?'disabled':'')+'><div style="height:5px"></div><input id="pv3_post_'+line.id+'" type="date" value="'+safe(line.postingDate||'')+'" '+(locked?'disabled':'')+'></td>'+
-  '<td><input id="pv3_folio_'+line.id+'" value="'+safe(line.invoiceNumber||'')+'" placeholder="Factura / ticket" '+(locked?'disabled':'')+'><div style="height:5px"></div><input id="pv3_uuid_'+line.id+'" value="'+safe(line.uuid||'')+'" placeholder="UUID si aplica" '+(locked?'disabled':'')+'></td>'+
+  '<td><input id="pv3_folio_'+line.id+'" value="'+safe(line.invoiceNumber||'')+'" placeholder="Ej. Uber / Hotel / Ticket 4582" '+(locked?'disabled':'')+'><div style="height:5px"></div><input id="pv3_uuid_'+line.id+'" value="'+safe(line.uuid||'')+'" placeholder="UUID si aplica" '+(locked?'disabled':'')+'></td>'+
   '<td><input id="pv3_vendor_'+line.id+'" value="'+safe(line.vendor||'')+'" placeholder="Proveedor / establecimiento" '+(locked?'disabled':'')+'><div style="height:5px"></div><input id="pv3_rfc_'+line.id+'" value="'+safe(line.rfc||'')+'" placeholder="RFC" '+(locked?'disabled':'')+'></td>'+
   '<td><input id="pv3_concept_'+line.id+'" list="pv3Concepts" value="'+safe(line.concept||'')+'" placeholder="Concepto" '+(locked?'disabled':'')+'><div style="height:5px"></div><input id="pv3_text_'+line.id+'" value="'+safe(line.text||'')+'" placeholder="Texto / descripción" '+(locked?'disabled':'')+'></td>'+
   '<td><input id="pv3_amount_'+line.id+'" type="number" min="0" step=".01" value="'+Number(line.amount||0).toFixed(2)+'" oninput="refreshProofV3(\''+safe(r.id)+'\')" '+(locked?'disabled':'')+'><div style="height:5px"></div><select id="pv3_currency_'+line.id+'" '+(locked?'disabled':'')+'><option '+((line.currency||'MXN')==='MXN'?'selected':'')+'>MXN</option><option '+(line.currency==='USD'?'selected':'')+'>USD</option></select></td>'+
@@ -3828,7 +3828,7 @@ function v5ComprobanteRow(r,inv,index,locked){
   '<td class="tax-readonly" id="v5_tax_'+index+'">'+MXN.format(t.tax)+'</td>'+
   '<td class="money-readonly" id="v5_total_'+index+'">'+MXN.format(t.gross)+'</td>'+
   '<td>'+v5AttachmentCell(inv,r,locked,index)+'</td>'+
-  '<td>'+(locked?'':'<button class="icon-btn danger" title="Eliminar posición" onclick="v4RemoveInvoice(\''+safe(r.id)+'\',\''+safe(inv.id)+'\')">×</button>')+'</td>'+
+  '<td>'+(locked?'':'<button class="icon-btn danger" title="Eliminar comprobante" onclick="v4RemoveInvoice(\''+safe(r.id)+'\',\''+safe(inv.id)+'\')">×</button>')+'</td>'+
  '</tr>'
 }
 function v4PositionRow(r,inv,pos,index,locked){
@@ -3984,7 +3984,7 @@ async function v4AddInvoice(id){
 }
 async function v4RemoveInvoice(id,invId){
  const r=requests.find(x=>x.id===id);if(!r)return;
- if(!confirm('¿Eliminar esta posición / comprobante?'))return;
+ if(!confirm('¿Eliminar este comprobante?'))return;
  const p=r.proof||{};p.targetProofAmount=v4TargetAmount(r);let current=v4CollectInvoices(r);
  try{current=await v4MergeFiles(current)}catch(e){toast(e.message);return}
  p.sapInvoices=current.filter(x=>x.id!==invId);if(!p.sapInvoices.length)p.sapInvoices=[v4NewInvoice(r,0)];r.proof=p;renderInvoiceCapture()
@@ -4015,16 +4015,16 @@ renderInvoiceCapture=function(){
  if(!r){box.innerHTML='<div class="invoice-empty"><h4>Selecciona una solicitud aprobada</h4><p>Regresa a Comprobación de gastos y elige “Realizar comprobación”.</p><button class="btn btn-orange" onclick="showView(\'proofs\')">Ir a comprobaciones</button></div>';return}
  const p=r.proof||{},locked=['Enviada','En revisión','Reintegro validado','Finalizada'].includes(p.status),invoices=v4Invoices(r),delivered=Number(resourceAmountForRequest(r))||0,total=v4TotalGross(invoices);
  box.innerHTML='<div class="sap-v4-wrap">'+
- '<div class="sap-v4-top"><div style="display:flex;justify-content:space-between;gap:14px;align-items:flex-start;flex-wrap:wrap"><div><div style="font-size:10px;font-weight:800;color:#5f7488;margin-bottom:4px">COMPROBACIÓN DE GASTOS</div><h3>Comprobación de gastos</h3><p>Todo se concentra en un solo documento para SAP. <strong>Cada renglón es uno de tus comprobantes</strong>: Uber, comida, hotel, estacionamiento, factura o ticket.</p></div><button class="btn btn-light" onclick="showView(\'proofs\')">← Regresar</button></div>'+
+ '<div class="sap-v4-top"><div style="display:flex;justify-content:space-between;gap:14px;align-items:flex-start;flex-wrap:wrap"><div><div style="font-size:10px;font-weight:800;color:#5f7488;margin-bottom:4px">COMPROBACIÓN DE GASTOS</div><h3>Comprobación de gastos</h3><p>Todo se concentra en una sola comprobación para SAP. <strong>Cada renglón representa un comprobante individual</strong>: Uber, comida, hotel, estacionamiento, factura o ticket.</p></div><button class="btn btn-light" onclick="showView(\'proofs\')">← Regresar</button></div>'+
  '<div class="sap-v5-general" style="margin-top:14px"><div><small>Recurso entregado</small><strong>'+MXN.format(delivered)+'</strong></div><div><small>Proveedor</small><strong>'+safe(currentUser.sapVendorId||'—')+' · '+safe(r.requester)+'</strong></div><div><small>Sociedad</small><strong>'+safe(v4SocietyForRequest(r))+' · DURANDCO BUSINESS SUPPORT</strong></div><div><small>Total capturado</small><strong id="v4_total">'+MXN.format(total)+'</strong></div></div>'+
- '<div class="sap-v5-target"><div class="sap-v5-target-main"><div><label>¿Cuánto vas a comprobar?</label><input id="v4_targetAmount" type="number" min="0" step=".01" value="'+(Number(p.targetProofAmount)>0?Number(p.targetProofAmount).toFixed(2):'')+'" placeholder="Ej. 1000.00" oninput="v4TargetChanged(\''+safe(r.id)+'\')" '+(locked?'disabled':'')+'></div><p>Escribe el monto total que quieres comprobar en este documento. Después registra abajo cada factura, ticket o gasto como una <strong>posición del libro mayor</strong>. El portal te dirá cuánto te falta para llegar a ese monto.</p></div><div id="v4_targetBalance">'+v4TargetBalanceHtml(r,invoices)+'</div></div></div>'+
+ '<div class="sap-v5-target"><div class="sap-v5-target-main"><div><label>¿Cuánto vas a comprobar?</label><input id="v4_targetAmount" type="number" min="0" step=".01" value="'+(Number(p.targetProofAmount)>0?Number(p.targetProofAmount).toFixed(2):'')+'" placeholder="Ej. 1000.00" oninput="v4TargetChanged(\''+safe(r.id)+'\')" '+(locked?'disabled':'')+'></div><p>Escribe el monto total que quieres comprobar. Después agrega abajo cada comprobante —por ejemplo Uber, comida u hotel— como un renglón. Cada renglón será una posición del libro mayor en el mismo documento SAP.</p></div><div id="v4_targetBalance">'+v4TargetBalanceHtml(r,invoices)+'</div></div></div>'+
  '<div class="sap-v4-body">'+
  '<div id="v6_assistant">'+v6AssistantHtml(r,invoices,locked)+'</div>'+
  (currentUser.sapVendorId?'':'<div class="notice error"><strong>Falta Emisor SAP.</strong> Génesis debe configurarlo en Administración → Usuarios antes de enviar.</div>')+
  '<div class="sap-v4-invoice">'+
-  '<div class="sap-v4-invoice-head"><div><h4>Comprobantes / posiciones del libro mayor</h4><div style="font-size:9px;color:var(--muted);margin-top:2px">Cada renglón es una factura, ticket o gasto (Uber, comida, hotel, etc.) y se convierte en una posición del único documento SAP.</div></div>'+(locked?'':'<button class="btn btn-orange" onclick="v4AddInvoice(\''+safe(r.id)+'\')">＋ Agregar posición / comprobante</button>')+'</div>'+
+  '<div class="sap-v4-invoice-head"><div><h4>Comprobantes de gasto</h4><div style="font-size:9px;color:var(--muted);margin-top:2px">Cada renglón es tu factura, ticket o gasto y se convierte en una posición del libro mayor dentro de la misma comprobación SAP.</div></div>'+(locked?'':'<button class="btn btn-orange" onclick="v4AddInvoice(\''+safe(r.id)+'\')">＋ Agregar comprobante</button>')+'</div>'+
   '<div class="sap-v4-section"><div class="sap-v4-note"><strong>Calculadora de IVA:</strong> captura el importe <u>antes de IVA</u> y selecciona el indicador. El portal calcula automáticamente el impuesto y el total del comprobante. Ejemplo: $862.07 + IVA 16% = $1,000.00.</div>'+
-   '<div class="table-wrap" style="margin-top:12px"><table class="sap-v5-table"><thead><tr><th>#</th><th>Fecha</th><th>Folio / referencia</th><th>Cuenta SAP</th><th>Descripción</th><th>Importe sin IVA</th><th>IVA</th><th>IVA calculado</th><th>Total</th><th>Anexo</th><th></th></tr></thead><tbody>'+
+   '<div class="table-wrap" style="margin-top:12px"><table class="sap-v5-table"><thead><tr><th>#</th><th>Fecha</th><th>Factura / ticket / referencia</th><th>Cuenta SAP</th><th>Concepto</th><th>Importe sin IVA</th><th>IVA</th><th>IVA calculado</th><th>Total comprobante</th><th>Soporte</th><th></th></tr></thead><tbody>'+
    invoices.map((inv,i)=>v5ComprobanteRow(r,inv,i,locked)).join('')+
    '</tbody></table></div>'+
    '<div id="v5_totals">'+v5TotalsHtml(invoices)+'</div>'+
