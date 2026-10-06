@@ -494,15 +494,15 @@ label{font-weight:700;color:#334155;letter-spacing:.01em}
     <div class="auth-card">
       <h2 id="authTitle">Iniciar sesión</h2>
       <p id="authSubtitle">Accede a tus viajes, anticipos, comprobaciones y aprobaciones.</p>
-      <form id="loginForm" class="auth-form active" novalidate>
+      <div id="loginForm" class="auth-form active">
         <div class="error-box" id="loginError"></div>
         <div class="field"><label>Correo electrónico</label><input id="loginEmail" type="email" required autocomplete="username" placeholder="correo@durandco.com"></div>
         <div class="field"><label>Contraseña</label><input id="loginPassword" type="password" required autocomplete="current-password"></div>
-        <button class="btn btn-orange" type="submit" id="loginSubmitButton">Continuar</button>
+        <button class="btn btn-orange" type="button" id="loginSubmitButton" onclick="loginPortal(event)" disabled aria-busy="true">Cargando acceso…</button>
         <div class="helper" style="margin-top:13px;text-align:center">
           Las cuentas son creadas y administradas por Genesis Leon desde Configuración → Usuarios.
         </div>
-      </form>
+      </div>
       <form id="initialPasswordForm" class="auth-form" style="display:none">
         <div class="error-box" id="initialPasswordError"></div>
         <div class="field"><label>Nueva contraseña</label><input id="initialNewPassword" type="password" required minlength="8" autocomplete="new-password" placeholder="Mínimo 8 caracteres, letras y números"></div>
@@ -1324,8 +1324,6 @@ async function loginPortal(e){
  loginPortalBusy=true;
  if(button){button.disabled=true;button.textContent='Ingresando…';button.setAttribute('aria-busy','true')}
  try{
-   if(button)button.textContent='Conectando…';
-   await apiRequest('/health',{method:'GET'});
    if(button)button.textContent='Ingresando…';
    const data=await apiRequest('/login',{method:'POST',body:{email,password}});
    if(data.user?.mustChangePassword){showInitialPasswordSetup();return false}
@@ -1340,8 +1338,18 @@ async function loginPortal(e){
  }
  return false
 }
-$('loginForm')?.addEventListener('submit',loginPortal);
 $('initialPasswordForm')?.addEventListener('submit',completeInitialPassword);
+['loginEmail','loginPassword'].forEach(id=>{
+ const el=$(id);
+ el?.addEventListener('keydown',event=>{
+  if(event.key==='Enter'){
+   event.preventDefault();
+   loginPortal(event);
+  }
+ });
+});
+const readyLoginButton=$('loginSubmitButton');
+if(readyLoginButton){readyLoginButton.disabled=false;readyLoginButton.textContent='Continuar';readyLoginButton.removeAttribute('aria-busy')}
 
 async function loadRemoteStateWithRetry(){
  let lastError=null;
@@ -4191,6 +4199,7 @@ renderProofs=function(){
 (function(){const f=$('proofStatusFilter');if(f)f.innerHTML='<option value="">Todos los estatus</option><option>Pendiente de comprobación</option><option>En captura</option><option>Pendiente de reintegro</option><option>Enviada</option><option>En revisión</option><option>Reintegro validado</option><option>Finalizada</option>'})();
 
 (async function initPortal(){
+ const initStartedAt=Date.now();
  try{
   const data=await apiRequest('/me');
   // Si el usuario ya empezó a iniciar sesión manualmente, esta comprobación
